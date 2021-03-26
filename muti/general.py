@@ -28,6 +28,25 @@ def get_unique_levels(feature, client, db, table):
     return [u[0] for u in uf]
 
 
+def cont_hist(x, y, title='2D Contour Histogram', xlab='Model Output', ylab='Y', subtitle=None, out_file=None):
+    
+    fig = [go.Histogram2dContour(x=x, y=y)]
+    min_value = min([yh.min(), y.quantile(.01)])
+    max_value = max([yh.max(), y.quantile(.99)])
+    fig += [go.Scatter(x=[min_value, max_value], y=[min_value, max_value],
+                       mode='lines', line=dict(color='red'))]
+    
+    if subtitle is not None:
+        title += title + '<br>' + subtitle
+    layout = go.Layout(title=dict(text=title, x=0.5),
+                       height=800, width=800,
+                       xaxis=dict(title=xlab),
+                       yaxis=dict(title=ylab))
+    figx = go.Figure(fig, layout=layout)
+    figx.show()
+    if out_file is not None:
+        figx.write_image(out_file)
+
 def ks_calculate(score_variable, binary_variable, plot=False, xlab='Score', ylab='CDF', title='KS Plot',
                  subtitle=None, out_file=None):
     """
