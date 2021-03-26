@@ -1,9 +1,9 @@
 from distutils.core import setup
 
 setup(
-    name='utilities',
+    name='muti',
     version='1.0',
-    packages=['utilities'],
+    packages=['muti'],
     url='',
     license='MIT',
     author='William Alexander',
