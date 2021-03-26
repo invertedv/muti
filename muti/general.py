@@ -43,7 +43,7 @@ def cont_hist(yh, y, title='2D Contour Histogram', xlab='Model Output', ylab='Y'
     :return:
     """
     
-    fig = [go.Histogram2dContour(x=x, y=y)]
+    fig = [go.Histogram2dContour(x=yh, y=y)]
     min_value = min([yh.min(), y.quantile(.01)])
     max_value = max([yh.max(), y.quantile(.99)])
     fig += [go.Scatter(x=[min_value, max_value], y=[min_value, max_value],
