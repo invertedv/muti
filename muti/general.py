@@ -28,7 +28,20 @@ def get_unique_levels(feature, client, db, table):
     return [u[0] for u in uf]
 
 
-def cont_hist(x, y, title='2D Contour Histogram', xlab='Model Output', ylab='Y', subtitle=None, out_file=None):
+def cont_hist(yh, y, title='2D Contour Histogram', xlab='Model Output', ylab='Y', subtitle=None, out_file=None):
+    """
+    Make a 2D contour histogram plot of y vs yh.
+    The plot is produced in the browser and optionally written to a file.
+    
+    :param yh: Model outputs
+    :param y: Target value
+    :param title: Title for plot
+    :param xlab: x-axis label
+    :param ylab: y-axis label
+    :param subtitle: optional subtitle
+    :param out_file: optional file to write graph to
+    :return:
+    """
     
     fig = [go.Histogram2dContour(x=x, y=y)]
     min_value = min([yh.min(), y.quantile(.01)])
