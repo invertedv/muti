@@ -1,5 +1,5 @@
 """
-muti that are helpful in general model building
+utilities that are helpful in general model building
 
 """
 def get_unique_levels(feature, client, db, table):

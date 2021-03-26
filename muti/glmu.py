@@ -2,6 +2,7 @@ import modeling.glm as glm
 import numpy as np
 import math
 
+
 def incr_build(model, target_var, start_list, add_list, get_data_fn, sample_size, client, family='normal'):
     """
     This function builds a sequence of GLM models. The get_data_fn takes a list of values as contained in
