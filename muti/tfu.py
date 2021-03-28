@@ -394,5 +394,7 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
             fig.update_layout(width=1800, height=600)
             fname = plot_dir + target + '.png'
             fig.write_image(fname)
-    
-    return pd.DataFrame(importance, index=['max median range'])
+
+    imp_df = pd.DataFrame(importance, index=['max median range']).transpose()
+    imp_df = imp_df.sort_values('max median range', ascending=False)
+    return imp_df
