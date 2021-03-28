@@ -235,7 +235,6 @@ def decile_plot(score_variable, binary_variable, xlab='Score', ylab='Actual', ti
     fig = [go.Scatter(x=rxy, y=rxy, line=dict(color='red'))]
     fig += [go.Scatter(x=mscore, y=mbinary, mode='markers',
                        line=dict(color='black'))]
-#    plt.plot(rxy, rxy, mscore, mbinary, 'ro')
     
     # Do confidence intervals
     for k in range(0, mbinary.shape[0]):
@@ -268,7 +267,6 @@ def decile_plot(score_variable, binary_variable, xlab='Score', ylab='Actual', ti
     # Add mean of binvar and score
     MeansTitle = 'Actual ' + np.str(round(binary_variable.mean(), 3))
     MeansTitle = MeansTitle + '\nScore ' + np.str(round(score_variable.mean(), 3))
-#    plt.annotate(MeansTitle, xy=[min_limit + 0.1 * rangexy, max_limit - 0.1 * rangexy])
     figx.add_annotation(x=min_limit + 0.1 * rangexy, y=max_limit - 0.1 * rangexy,
                         text=MeansTitle,
                         showarrow=False,
