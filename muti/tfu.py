@@ -231,9 +231,9 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     """
     Generate plots to illustrate the marginal effects of the model 'model'. Live plots are output to the default
     browser and, optionally, png's are written to plot_dir
-    
+
     The process is:
-    
+
     - The model output is found on sample_df:
         - Six groups based on the quantiles [0, .1,. .25, .5, .75, .9, 1] are found from sample_df.
     - for each feature in features_target:
@@ -246,14 +246,21 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
             - The model output is found for all these
             - Boxplots are formed.  These plots have a common y-axis with limits from the .01 to .99 quantile
               of the model output on sample_df
-    
+
     Features:
         - Since the x-values are sampled from sample_df, any correlation within the features not plotted on the
           x-axis are preserved.
         - The values of the target feature are observed within the group (of the six) being plotted, so extrapolation
           into unobserved space is reduced. The
 
+    Returns a metric that rates the importance of the feature to the model (e.g. sloping). It is calculated as:
     
+    - Within each model output segment,
+        - calculate the median model output for each x value.
+        - Then calculate the range of these medians.
+    - We then have a range for each model output segment. Now find the maximum across the segments. This is the
+      impportance value.
+
     :param model: A keras tf model with a 'predict' method that takes a tf dataset as input
     :type tf.keras.Mode
     :param features_target: features to generate plots for.
@@ -268,21 +275,23 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     :type int
     :param cat_top: maximum number of levels of categorical variables to plot
     :type int
-    :return: none, side effect: plots
+    :return: for each target, the range of the median across the target levels for each model output group
+    :rtype dict
     """
-    if plot_dir is not None and plot_dir[-1] != '/': plot_dir += '/'
-    if os.path.isdir(plot_dir):
-        os.system('rm -r ' + plot_dir)
-    os.makedirs(plot_dir)
+    if plot_dir is not None:
+        if plot_dir[-1] != '/': plot_dir += '/'
+        if os.path.isdir(plot_dir):
+            os.system('rm -r ' + plot_dir)
+        os.makedirs(plot_dir)
     pio.renderers.default = 'browser'
     
     sample_df = sample_df_in.copy()
-
+    
     sample_df['target'] = np.full(sample_df.shape[0], 0.0)
     score_ds = get_tf_dataset(features_dict, 'target', sample_df, sample_df.shape[0], 1)
-
+    
     sample_df['yh'] = np.array(model.predict(score_ds)).flatten()
-    rangey = sample_df['yh'].quantile([.01,.99])
+    rangey = sample_df['yh'].quantile([.01, .99])
     miny = float(rangey.iloc[0])
     maxy = float(rangey.iloc[1])
     target_qs = [0, .1, .25, .5, .75, .9, 1]
@@ -291,25 +300,29 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     num_grp = quantiles.shape[0] - 1
     sample_df['grp'] = pd.cut(sample_df['yh'], quantiles, labels=['grp' + str(j) for j in range(num_grp)], right=True)
     sub_titles = []
+    importance = {}
+    
     for j in range(num_grp):
         sub_title = 'Model Output in {0} to {1}'.format(round(quantiles.iloc[j], 2), round(quantiles.iloc[j + 1], 2))
         sub_title += '<br>'
         sub_title += 'Quantile {0} to {1}'.format(target_qs[j], target_qs[j + 1])
         sub_titles += [sub_title]
-
     for target in features_target:
+        # the specs list gives some padding between the top of the plots and the overall title
         fig = make_subplots(rows=1, cols=num_grp, subplot_titles=sub_titles,
-                            x_title=target, y_title='Model Output',
-                            specs=[[{'t':0.05},{'t':0.05}, {'t':0.05}, {'t':0.05}, {'t':0.05}, {'t':0.05}]])
-
+                            specs=[[{'t': 0.05}, {'t': 0.05}, {'t': 0.05}, {'t': 0.05}, {'t': 0.05}, {'t': 0.05}]])
+        
+        median_ranges = []
+        # go across the model output groups
         for j in range(num_grp):
             yhall = None
             i = sample_df['grp'] == 'grp' + str(j)
-
+            
             if features_dict[target][0] == 'cts':
-                qs = sample_df.loc[i, target].quantile([0.01, .1, .2, .3, .4, .5, .6, .7, .8, 0.9, 0.99]).unique()
+                qs = sample_df.loc[i, target].quantile([.1, .2, .3, .4, .5, .6, .7, .8, .9]).unique()
                 nobs = qs.shape[0]
                 xval = np.array(qs).flatten()
+                xlab = 'Values at deciles within each model-value group'
             else:
                 cats = list(sample_df.loc[i][target].value_counts().sort_values(ascending=False).index)
                 if cat_top is None or len(cats) < cat_top:
@@ -318,43 +331,68 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
                 else:
                     nobs = cat_top
                     xval = cats[0:nobs]
+                xlab = 'Top values by frequency within each model-value group'
+            # score_df is just the values of the feature we going to score
             score_df = pd.DataFrame({target: xval})
-
+            
+            # pick a random sample within the model output group
             vals = sample_df.loc[i].sample(num_sample)
+            
+            # go across the number of samples to draw
             for k in range(num_sample):
+                # load up the rest of the features moving through our random sample
                 for feature in features_dict.keys():
                     if feature != target:
                         xval = np.full(nobs, vals.iloc[k][feature])
                         score_df[feature] = xval
                 
+                # placeholder
                 score_df['target'] = np.full(nobs, 0.0)
                 score_ds = get_tf_dataset(features_dict, 'target', score_df, nobs, 1)
                 
                 yh = np.array(model.predict(score_ds)).flatten()
+                
+                # stack up the model outputs
                 if yhall is None:
                     yhall = yh
                     xall = np.array(score_df[target]).flatten()
                 else:
                     yhall = np.append(yhall, yh)
                     xall = np.append(xall, np.array(score_df[target]).flatten())
-                
+            
+            # create grouped boxplots based on the values of the target feature
             if features_dict[target][0] == 'cts':
-                xv = pd.DataFrame({'x': [ str(round(x, 2)) for x in xall], 'yh': yhall})
-                fig.add_trace(go.Box(x=xv['x'], y=xv['yh']), row=1, col=j+1)
+                xv = pd.DataFrame({'x': [str(round(x, 2)) for x in xall], 'yh': yhall})
+                fig.add_trace(go.Box(x=xv['x'], y=xv['yh']), row=1, col=j + 1)
             else:
-                xv = pd.DataFrame({'x': [ str(x) for x in xall], 'yh': yhall})
-                fig.add_trace(go.Box(x=xv['x'], y=xv['yh']), row=1, col=j+1)
-            fig.update_annotations(sub_title='Group ' + str(j), row=1, col=j+1)
-            fig.update_traces(name = 'grp ' + str(j), row=1, col=j+1)
-
-        fig.update_layout(title = dict(text='Marginal Response for ' + target, font=dict(size=24), xanchor='center', xref='paper', x=0.5), showlegend=False)
+                xv = pd.DataFrame({'x': [str(x) for x in xall], 'yh': yhall})
+                fig.add_trace(go.Box(x=xv['x'], y=xv['yh']), row=1, col=j + 1)
+            # give the figure a title
+            fig.update_annotations(sub_title='Group ' + str(j), row=1, col=j + 1)
+            fig.update_traces(name='grp ' + str(j), row=1, col=j + 1)
+            score_df['yh'] = yh
+            medians = xv.groupby('x')['yh'].median()
+            median_ranges += [medians.max() - medians.min()]
+        
+        importance[target] = max(median_ranges)
+        # overall title
+        fig.update_layout(
+            title=dict(text='Marginal Response for ' + target, font=dict(size=24), xanchor='center', xref='paper',
+                       x=0.5), showlegend=False)
+        # add label at bottom of graphs
+        fig.add_annotation(text=target, font=dict(size=16), x=0.5, xanchor='center', xref='paper', y=0,
+                           yanchor='top', yref='paper', yshift=-40, showarrow=False)
+        fig.add_annotation(text=xlab, font=dict(size=10), x=0.5, xanchor='center', xref='paper', y=0,
+                           yanchor='top', yref='paper', yshift=-60, showarrow=False)
         for jj in range(num_grp):
-            fig['layout']['yaxis'+str(jj+1)]['range'] = [miny, maxy]
+            fig['layout']['yaxis' + str(jj + 1)]['range'] = [miny, maxy]
         for jj in range(1, num_grp):
             fig['layout']['yaxis' + str(jj + 1)]['showticklabels'] = False
         fig.show()
-        # needed for png to look decent
-        fig.update_layout(width=1800, height=600)
         if plot_dir is not None:
+            # needed for png to look decent
+            fig.update_layout(width=1800, height=600)
             fname = plot_dir + target + '.png'
             fig.write_image(fname)
+    
+    return pd.DataFrame(importance, index=['max median range'])
