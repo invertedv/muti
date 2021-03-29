@@ -283,3 +283,125 @@ def decile_plot(score_variable, binary_variable, xlab='Score', ylab='Actual', ti
         figx.write_image(out_file)
     
     return
+
+
+def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles=10,
+                   boot_samples=1000, boot_coverage=0.95):
+    """
+    Generates two plots to assess model fit.
+
+    The first is a set of paired boxplots of the model output and target 'y' grouped by values of the feature.
+    The second is a plot of the mean model output versus mean target 'y' grouped by values of the feature.
+
+    :param features: features to generate plots for, key is feature name, value is 'cts', 'cat', 'emb'.
+    :type features: dict
+    :param targets: dict with keys 'model_output' and 'target' that point to columns in sample_df_in
+    :type targets dict
+    :param sample_df_in: DataFrame from which to take samples and calculate distributions
+    :type sample_df_in: pandas DataFrame
+    :param plot_dir: directory to write plots out to
+    :type plot_dir: str
+    :param num_quantiles: number of quantiles at which to discretize continuous variables
+    :type num_quantiles: int
+    :param boot_samples: # of bootstrap samples to take
+    :type boot_samples: int
+    :param boot_coverage: coverage of bootstrap CI
+    :type boot_coverage: float
+
+    """
+    
+    def boot_mean(y_in, num_samples, coverage=0.95):
+        """
+        Bootstraps the mean of y_in to form a CI with coverage 'coverage'.
+        Assumes there's enough correlation in the data to reduce the effective sample size to 1/4 the length
+        of y_in.
+
+        :param y_in: data to form a CI for
+        :type y_in: pandas Series
+        :param num_samples: # of bootstrap samples to run
+        :type num_samples: int
+        :param coverage: CI coverage level (as a decimal)
+        :type coverage: float
+        :return: bootstrap CI
+        :rtype list
+        """
+        means = []
+        n = int(y.shape[0] / 4)
+        alpha2 = (1.0 - coverage) / 2.0
+        for j in range(num_samples):
+            ys = y_in.sample(n, replace=True)
+            means += [ys.mean()]
+        med_df = pd.DataFrame({'means': means})
+        ci_boot = med_df.quantile([alpha2, 1.0 - alpha2])
+        return list(ci_boot['means'])
+    
+    pio.renderers.default = 'browser'
+    
+    sample_df = sample_df_in.copy()
+    
+    y = targets['target']
+    yh = targets['model_output']
+    
+    for feature in features.keys():
+        if features[feature][0] == 'cts':
+            us = np.arange(num_quantiles + 1) / num_quantiles
+            quantiles = sample_df[feature].quantile(us).unique()
+            quantiles[0] -= 1.0
+            decimals = 5
+            while np.unique(np.round(quantiles, decimals)).shape[0] == quantiles.shape[0]:
+                decimals -= 1
+                if decimals < 0:
+                    break
+            quantiles = np.round(quantiles, decimals + 1)
+            if decimals < 0:
+                quantiles = quantiles.astype(int)
+            sample_df[feature] = pd.cut(sample_df[feature], quantiles,
+                                        labels=[feature + ' ' + str(quantiles[j + 1]) for j in
+                                                range(quantiles.shape[0] - 1)], right=True)
+        
+        fig = [go.Box(x=sample_df[feature], y=sample_df[yh], name='model')]
+        fig += [go.Box(x=sample_df[feature], y=sample_df[y], name='actual')]
+        co = sample_df.groupby(feature)[yh].mean().sort_values(ascending=False).index
+        
+        layout = go.Layout(title='Model and Actual values by ' + feature,
+                           xaxis=dict(title=feature, categoryorder='array', categoryarray=co),
+                           yaxis=dict(title=y))
+        
+        figx = go.Figure(fig, layout=layout)
+        figx.update_layout(boxmode='group')
+        figx.show()
+        
+        co = sample_df.groupby(feature)[[y, yh]].mean()
+        fig1 = [go.Scatter(x=co[yh], y=co[y], mode='markers', name='',
+                           customdata=co.index, marker=dict(color='black'),
+                           hovertemplate='%{customdata}<br>Model %{x}<br>Actual %{y}')]
+        for indx in co.index:
+            i = sample_df[feature] == indx
+            ci = boot_mean(sample_df.loc[i, y], boot_samples, coverage=boot_coverage)
+            x = [co.loc[indx][yh], co.loc[indx][yh]]
+            fig1 += [go.Scatter(x=x, y=ci, mode='lines', line=dict(color='black'), name='')]
+        minv = min([co[y].min(), co[yh].min()])
+        maxv = max([co[y].max(), co[yh].max()])
+        fig1 += [go.Scatter(x=[minv, maxv], y=[minv, maxv], mode='lines', line=dict(color='red'), name='')]
+        layout1 = go.Layout(title=dict(text='mean Model vs Actual Grouped by ' + feature, x=0.5, xref='paper',
+                                       font=dict(size=24)),
+                            xaxis=dict(title='Model Output'),
+                            yaxis=dict(title=y),
+                            height=800,
+                            width=800,
+                            showlegend=False)
+        figx1 = go.Figure(fig1, layout=layout1)
+        xlab = 'Bootstrap CI at {0:.0f}% coverage'.format(100 * boot_coverage)
+        figx1.add_annotation(text=xlab, font=dict(size=10), x=0.5, xanchor='center', xref='paper', y=0,
+                             yanchor='top', yref='paper', yshift=-50, showarrow=False)
+        figx1.show()
+        if plot_dir is not None:
+            if plot_dir[-1] != '/':
+                plot_dir += '/'
+            if co.shape[0] > 10:
+                figx.update_layout(width=1800, height=600)
+            fname = plot_dir + feature + 'ModelFitBoxPlot.png'
+            figx.write_image(fname)
+            
+            fname = plot_dir + feature + 'ModelFitCrossMean.png'
+            figx1.write_image(fname)
