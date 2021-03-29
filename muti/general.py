@@ -9,19 +9,21 @@ import plotly.io as pio
 import scipy.stats as stats
 import math
 
+
 def get_unique_levels(feature, client, db, table):
     """
     Retrieves the unique levels of the column 'feature' in the table 'table' of database db.
 
     :param feature: column name in db.table to get unique levels
-    :type str
+    :type feature: str
     :param client: clickhouse client connector
-    :type clickhouse_driver.Client
+    :type client: clickhouse_driver.Client
     :param db: database name
-    :type str
+    :type db: str
     :param table: table name
-    :type str
+    :type table: str
     :return: list of unique levels
+    :rtype list
     """
     qry = 'SELECT DISTINCT ' + feature + ' FROM ' + db + '.' + table + ' ORDER BY ' + feature
     uf = client.execute(qry)
@@ -60,6 +62,7 @@ def cont_hist(yh, y, title='2D Contour Histogram', xlab='Model Output', ylab='Y'
     if out_file is not None:
         figx.write_image(out_file)
 
+
 def ks_calculate(score_variable, binary_variable, plot=False, xlab='Score', ylab='CDF', title='KS Plot',
                  subtitle=None, out_file=None):
     """
@@ -75,6 +78,8 @@ def ks_calculate(score_variable, binary_variable, plot=False, xlab='Score', ylab
     :type score_variable: pandas series, numpy array or numpy vector
     :param binary_variable: binary outcome (dependent) variable from the logistic regression
     :type binary_variable: numpy array or numpy vector
+    :param plot: creates a graph if True
+    :type plot: bool
     :param xlab: label for the x-axis (score variable), optional
     :type xlab: str
     :param ylab: label for the y-axis (binary variable), optional
@@ -84,7 +89,7 @@ def ks_calculate(score_variable, binary_variable, plot=False, xlab='Score', ylab
     :param subtitle: subtitle for the plot, optional (default=None)
     :type subtitle: str
     :param out_file file name for writing out the plot
-    :type str
+    :type out_file: str
     :return: KS statistic (0 to 100),
     :rtype: float
 
@@ -129,8 +134,8 @@ def ks_calculate(score_variable, binary_variable, plot=False, xlab='Score', ylab
     
     if plot:
         pio.renderers.default = 'browser'
-        fig = [go.Scatter(x=score0, y=u0, line=dict(color='black') )]
-        fig += [go.Scatter(x=score1, y=u1, line=dict(color='black') )]
+        fig = [go.Scatter(x=score0, y=u0, line=dict(color='black'))]
+        fig += [go.Scatter(x=score1, y=u1, line=dict(color='black'))]
         
 #        fig += [go.Scatter(x=sc, y=uu0, line=dict(color='red'))]
 #        fig += [go.Scatter(x=sc, y=uu1, line=dict(color='red'))]
@@ -145,8 +150,8 @@ def ks_calculate(score_variable, binary_variable, plot=False, xlab='Score', ylab
                            yaxis=dict(title=ylab, range=[0, 1]))
         figx = go.Figure(fig, layout=layout)
         figx.show()
-    if out_file is not None:
-        figx.write_image(out_file)
+        if out_file is not None:
+            figx.write_image(out_file)
 
     return ks
 
@@ -184,7 +189,7 @@ def decile_plot(score_variable, binary_variable, xlab='Score', ylab='Actual', ti
     :param subtitle: subtitle for the plot, optional (default=None)
     :type subtitle: str
     :param out_file file name for writing out the plot
-    :type str
+    :type out_file: str
     :return: plot
     :rtype: N/A
     """
@@ -247,7 +252,8 @@ def decile_plot(score_variable, binary_variable, xlab='Score', ylab='Actual', ti
                            line=dict(color='black'), mode='lines')]
     
     # Make pretty
-    if subtitle is not None: title += '<br>' + subtitle
+    if subtitle is not None:
+        title += '<br>' + subtitle
     layout = go.Layout(title=dict(text=title, x=0.5),
                        showlegend=False,
                        xaxis=dict(title=xlab, range=[min_limit, max_limit]),
@@ -265,10 +271,10 @@ def decile_plot(score_variable, binary_variable, xlab='Score', ylab='Actual', ti
                         text=annot,
                         showarrow=False)
     # Add mean of binvar and score
-    MeansTitle = 'Actual ' + np.str(round(binary_variable.mean(), 3))
-    MeansTitle = MeansTitle + '\nScore ' + np.str(round(score_variable.mean(), 3))
+    means_title = 'Actual ' + np.str(round(binary_variable.mean(), 3))
+    means_title = means_title + '\nScore ' + np.str(round(score_variable.mean(), 3))
     figx.add_annotation(x=min_limit + 0.1 * rangexy, y=max_limit - 0.1 * rangexy,
-                        text=MeansTitle,
+                        text=means_title,
                         showarrow=False,
                         xshift=1, xref='paper')
     pio.renderers.default = 'browser'

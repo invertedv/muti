@@ -1,5 +1,6 @@
 """
 Utilities that help with the building of tensorflow keras models
+
 """
 import tensorflow as tf
 import os
@@ -45,14 +46,15 @@ def build_column(feature_name, feature_params, out_path=None):
     embedded features. Optionally creates files of the vocabularies for use in TensorBoard.
   
     :param feature_name: name of the feature
-    :type str
+    :type feature_name: str
     :param feature_params:
         Element 0: type of feature ('cts', 'cat', 'emb').
         Element 1: ('cat', 'emb') vocabulary list (list of levels)
         Element 2: ('cat', 'emb') default index. If None, 0 is used
         Element 3: ('emb') embedding dimension
-    :type list
+    :type feature_params: list
     :param out_path: path to write files containing levels of 'cat' and 'emb' variables
+    :type out_path: str
     :return: tf feature column and (for 'cat' and 'emb') a list of levels (vocabulary)
     """
     
@@ -63,9 +65,10 @@ def build_column(feature_name, feature_params, out_path=None):
     if feature_params[0] in ['cat', 'emb']:
         vocab = feature_params[1]
         
-      # save vocabulary for TensorBoard
+        # save vocabulary for TensorBoard
         if out_path is not None:
-            if out_path[-1] != '/': out_path += '/'
+            if out_path[-1] != '/':
+                out_path += '/'
             if not os.path.isdir(out_path):
                 os.makedirs(out_path)
             f = open(out_path + feature_name + '.txt', 'w')
@@ -75,9 +78,9 @@ def build_column(feature_name, feature_params, out_path=None):
             f.close()
         dv = [j for j in range(len(vocab)) if vocab[j] == feature_params[2]][0]
         col_cat = tf.feature_column.categorical_column_with_vocabulary_list(feature_name, vocab,
-                                                                          default_value=dv)
+                                                                            default_value=dv)
       
-      # go with 1-hot encoding
+        # go with 1-hot encoding
         if feature_params[0] == 'cat':
             col_ind = tf.feature_column.indicator_column(col_cat)
             print('col {0} is categorical with {1} levels'.format(feature_name, len(vocab)))
@@ -178,9 +181,10 @@ def incr_build(model, start_list, add_list, get_data_fn, sample_size, feature_di
     """
 
     if model_dir is not None:
-        if model_dir[-1] != '/': model_dir += '/'
+        if model_dir[-1] != '/':
+            model_dir += '/'
         if os.path.isdir(model_dir):
-          os.system('rm -r ' + model_dir)
+            os.system('rm -r ' + model_dir)
         os.makedirs(model_dir)
 
     build_list = start_list
@@ -262,24 +266,25 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
       impportance value.
 
     :param model: A keras tf model with a 'predict' method that takes a tf dataset as input
-    :type tf.keras.Mode
+    :type model: tf.keras.Mode
     :param features_target: features to generate plots for.
-    :type list of str
+    :type features_target: list of str
     :param features_dict: dictionary whose keys are the features in the model
-    :type dict
-    :param sample_df: DataFrame from which to take samples and calculate distributions
-    :type pandas DataFrame
+    :type features_dict: dict
+    :param sample_df_in: DataFrame from which to take samples and calculate distributions
+    :type sample_df_in:  pandas DataFrame
     :param plot_dir: directory to write plots out to
-    :type str
+    :type plot_dir: str
     :param num_sample: number of samples to base box plots on
-    :type int
+    :type num_sample: int
     :param cat_top: maximum number of levels of categorical variables to plot
-    :type int
+    :type cat_top: int
     :return: for each target, the range of the median across the target levels for each model output group
     :rtype dict
     """
     if plot_dir is not None:
-        if plot_dir[-1] != '/': plot_dir += '/'
+        if plot_dir[-1] != '/':
+            plot_dir += '/'
         if os.path.isdir(plot_dir):
             os.system('rm -r ' + plot_dir)
         os.makedirs(plot_dir)
@@ -370,7 +375,7 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
             # give the figure a title
             fig.update_annotations(sub_title='Group ' + str(j), row=1, col=j + 1)
             fig.update_traces(name='grp ' + str(j), row=1, col=j + 1)
-            score_df['yh'] = yh
+#            score_df['yh'] = yh
             medians = xv.groupby('x')['yh'].median()
             median_ranges += [medians.max() - medians.min()]
         
@@ -409,21 +414,24 @@ def fit_by_feature(model, features_target, features_dict, targety, sample_df_in,
     The second is a plot of the mean model output versus mean target 'y' grouped by values of the feature.
 
     :param model: A keras tf model with a 'predict' method that takes a tf dataset as input
-    :type tf.keras.Mode
+    :type model: tf.keras.Mode
     :param features_target: features to generate plots for, key is feature name, value is 'cts', 'cat', 'emb'.
     :type features_target: dict
     :param features_dict: dictionary whose keys are the features in the model
     :type features_dict: dict
-    :param sample_df: DataFrame from which to take samples and calculate distributions
-    :type pandas DataFrame
+    :param targety: target of model (dependent variable)
+    :type targety: str
+    :param sample_df_in: DataFrame from which to take samples and calculate distributions
+    :type sample_df_in: pandas DataFrame
     :param plot_dir: directory to write plots out to
+    :type plot_dir: str
     :param num_quantiles: number of quantiles at which to discretize continuous variables
     :type num_quantiles: int
     :param boot_samples: # of bootstrap samples to take
     :type boot_samples: int
     :param boot_coverage: coverage of bootstrap CI
     :type boot_coverage: float
-    :type str
+
     """
     
     def boot_mean(y, num_samples, coverage=0.95):
@@ -437,7 +445,7 @@ def fit_by_feature(model, features_target, features_dict, targety, sample_df_in,
         :param num_samples: # of bootstrap samples to run
         :type num_samples: int
         :param coverage: CI coverage level (as a decimal)
-        :type float
+        :type coverage: float
         :return: bootstrap CI
         :rtype list
         """
@@ -447,27 +455,35 @@ def fit_by_feature(model, features_target, features_dict, targety, sample_df_in,
         for j in range(num_samples):
             ys = y.sample(n, replace=True)
             means += [ys.mean()]
-        med_df = pd.DataFrame({'meds': means})
-        ci = med_df.quantile([alpha2, 1.0 - alpha2])
-        return list(ci['meds'])
+        med_df = pd.DataFrame({'means': means})
+        ci_boot = med_df.quantile([alpha2, 1.0 - alpha2])
+        return list(ci_boot['means'])
     
     pio.renderers.default = 'browser'
     
     sample_df = sample_df_in.copy()
     
-    sample_df['target'] = np.full(sample_df.shape[0], 0.0)
-    score_ds = get_tf_dataset(features_dict, 'target', sample_df, sample_df.shape[0], 1)
+    #    sample_df['target'] = np.full(sample_df.shape[0], 0.0)
+    score_ds = get_tf_dataset(features_dict, targety, sample_df, sample_df.shape[0], 1)
     
     sample_df['yh'] = np.array(model.predict(score_ds)).flatten()
     
     for target in features_target.keys():
-        if features_target[target] == 'cts':
+        if features_target[target][0] == 'cts':
             us = np.arange(num_quantiles + 1) / num_quantiles
-            quantiles = sample_df[target].quantile(us)
+            quantiles = sample_df[target].quantile(us).unique()
             quantiles[0] -= 1.0
+            decimals = 5
+            while np.unique(np.round(quantiles, decimals)).shape[0] == quantiles.shape[0]:
+                decimals -= 1
+                if decimals < 0:
+                    break
+            quantiles = np.round(quantiles, decimals + 1)
+            if decimals < 0:
+                quantiles = quantiles.astype(int)
             sample_df[target] = pd.cut(sample_df[target], quantiles,
-                                       labels=[target + ' ' + str(round(quantiles.iloc[j + 1], 1)) for j in
-                                               range(num_quantiles)], right=True)
+                                       labels=[target + ' ' + str(quantiles[j + 1]) for j in
+                                               range(quantiles.shape[0] - 1)], right=True)
         
         fig = [go.Box(x=sample_df[target], y=sample_df['yh'], name='model')]
         fig += [go.Box(x=sample_df[target], y=sample_df[targety], name='actual')]
@@ -490,8 +506,8 @@ def fit_by_feature(model, features_target, features_dict, targety, sample_df_in,
             ci = boot_mean(sample_df.loc[i, targety], boot_samples, coverage=boot_coverage)
             x = [co.loc[indx]['yh'], co.loc[indx]['yh']]
             fig1 += [go.Scatter(x=x, y=ci, mode='lines', line=dict(color='black'), name='')]
-        minv = co[targety].min()
-        maxv = co[targety].max()
+        minv = min([co[targety].min(), co['yh'].min()])
+        maxv = max([co[targety].max(), co['yh'].max()])
         fig1 += [go.Scatter(x=[minv, maxv], y=[minv, maxv], mode='lines', line=dict(color='red'), name='')]
         layout1 = go.Layout(title=dict(text='mean Model vs Actual Grouped by ' + target, x=0.5, xref='paper',
                                        font=dict(size=24)),
@@ -506,7 +522,8 @@ def fit_by_feature(model, features_target, features_dict, targety, sample_df_in,
                              yanchor='top', yref='paper', yshift=-50, showarrow=False)
         figx1.show()
         if plot_dir is not None:
-            if plot_dir[-1] != '/': plot_dir += '/'
+            if plot_dir[-1] != '/':
+                plot_dir += '/'
             if co.shape[0] > 10:
                 figx.update_layout(width=1800, height=600)
             fname = plot_dir + target + 'ModelFitBoxPlot.png'
