@@ -1,9 +1,11 @@
-import modeling.glm as glm
+from modeling.glm import glm
 import numpy as np
 import math
 
 
-def incr_build(model, target_var, start_list, add_list, get_data_fn, sample_size, client, family='normal'):
+def incr_build(model, target_var, start_list, add_list, get_data_fn, sample_size, client, global_valid_df_in,
+               family='normal'):
+
     """
     This function builds a sequence of GLM models. The get_data_fn takes a list of values as contained in
     start_list and add_list and returns data subset to those values. The initial model is built on the
@@ -29,6 +31,8 @@ def incr_build(model, target_var, start_list, add_list, get_data_fn, sample_size
     """
     
     build_list = start_list
+    global_valid_df = global_valid_df_in.copy()
+    global_valid_df['model_glm_inc'] = np.full((global_valid_df.shape[0]), 0.0)
     
     rmse_valid = []
     corr_valid = []
@@ -43,7 +47,11 @@ def incr_build(model, target_var, start_list, add_list, get_data_fn, sample_size
         
         glm_model = glm(model, model_df, family=family)
         build_list += [valid]
-        
+
+        gyh = glm_model.predict(global_valid_df)
+        i = global_valid_df['vintage'] == valid
+        global_valid_df.loc[i, 'model_glm_inc'] = gyh[i]
+
         yh = glm_model.predict(valid_df)
         res = valid_df[target_var] - np.array(yh).flatten()
         rmse_valid += [math.sqrt(np.square(res).mean())]
@@ -52,4 +60,4 @@ def incr_build(model, target_var, start_list, add_list, get_data_fn, sample_size
         cor = float(cor.iloc[0]['yh'])
         corr_valid += [cor]
     
-    return segs, rmse_valid, corr_valid
+    return segs, rmse_valid, corr_valid, global_valid_df

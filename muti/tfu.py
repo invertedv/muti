@@ -150,7 +150,8 @@ def get_tf_dataset(feature_dict, target, df, batch_size, repeats=None):
 
 
 def incr_build(model, start_list, add_list, get_data_fn, sample_size, feature_dict, target_var,
-               client, batch_size, epochs_list, steps_per_epoch, model_dir=None, plot=False, verbose=0):
+               client, batch_size, epochs_list, steps_per_epoch, global_valid_df_in,
+               model_dir=None, plot=False, verbose=0):
     """
     This function builds a sequence of models. The get_data_fn takes a list of values as contained in
     start_list and add_list and returns data subset to those values. The initial model is built on the
@@ -192,7 +193,12 @@ def incr_build(model, start_list, add_list, get_data_fn, sample_size, feature_di
     mse_valid = []
     corr_valid = []
     segs = []
-    
+
+    global_valid_df = global_valid_df_in.copy()
+    # validation data
+    global_valid_df['model_dnn_inc'] = np.full((global_valid_df.shape[0]), 0.0)
+    global_valid_ds = get_tf_dataset(feature_dict, target_var, global_valid_df, 10000, 1)
+
     for j, valid in enumerate(add_list):
         segs += [valid]
         model_df = get_data_fn(build_list, sample_size, client)
@@ -209,8 +215,13 @@ def incr_build(model, start_list, add_list, get_data_fn, sample_size, feature_di
 
         history = model.fit(model_ds, epochs=epochs, steps_per_epoch=steps_per_epoch,
                             validation_data=valid_ds, verbose=verbose)
+        
+        gyh = np.array(model.predict(global_valid_ds)).flatten()
+        i = global_valid_df['vintage'] == valid
+        global_valid_df.loc[i, 'model_dnn_inc'] = gyh[i]
 
         build_list += [valid]  # NOTE Accumulates
+#        build_list = [valid]   # NOTE Accumulates NOT
         if model_dir is not None:
             out_m = model_dir + "before_" + valid + '.h5'
             model.save(out_m, overwrite=True, save_format='h5')
@@ -228,7 +239,7 @@ def incr_build(model, start_list, add_list, get_data_fn, sample_size, feature_di
         corr_valid += [cor]
         epochs = epochs_list[1]
 
-    return segs, mse_valid, corr_valid
+    return segs, mse_valid, corr_valid, global_valid_df
 
 
 def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None, num_sample=100, cat_top=10):

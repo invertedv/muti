@@ -326,7 +326,7 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
         :rtype list
         """
         means = []
-        n = int(y.shape[0] / 4)
+        n = int(y_in.shape[0] / 4)
         alpha2 = (1.0 - coverage) / 2.0
         for j in range(num_samples):
             ys = y_in.sample(n, replace=True)
@@ -369,7 +369,7 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
         
         figx = go.Figure(fig, layout=layout)
         figx.update_layout(boxmode='group')
-        figx.show()
+        #figx.show()
         
         co = sample_df.groupby(feature)[[y, yh]].mean()
         fig1 = [go.Scatter(x=co[yh], y=co[y], mode='markers', name='',
@@ -377,7 +377,7 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
                            hovertemplate='%{customdata}<br>Model %{x}<br>Actual %{y}')]
         for indx in co.index:
             i = sample_df[feature] == indx
-            ci = boot_mean(sample_df.loc[i, y], boot_samples, coverage=boot_coverage)
+            ci = boot_mean(sample_df.loc[i][y], boot_samples, coverage=boot_coverage)
             x = [co.loc[indx][yh], co.loc[indx][yh]]
             fig1 += [go.Scatter(x=x, y=ci, mode='lines', line=dict(color='black'), name='')]
         minv = min([co[y].min(), co[yh].min()])
