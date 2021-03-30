@@ -3,6 +3,31 @@ import numpy as np
 import math
 
 
+def build_model_formula(features_dict, target):
+    """
+    Builds the model formula for glm from modeling based on the features_dict specification.
+    Does not included embedded features
+    
+    :param features_dict: features dictionary
+    :type features_dict: dict
+    :param target: dependent variable
+    :type target: str
+    :return: model formula
+    :rtype str
+    """
+    ms = target + '~'
+    extra = ''
+    for feature in features_dict:
+        if features_dict[feature][0] == 'cts':
+            ms += extra + feature
+        elif features_dict[feature][0] == 'spl':
+            ms += extra + 'h(' + feature + ',' + features_dict[feature][1] + ',0)'
+        elif features_dict[feature][0] == 'cat':
+            ms += extra + 'c(' + feature + ',' + features_dict[feature][2] + ')'
+        extra = ' + '
+    return ms
+
+
 def incr_build(model, target_var, start_list, add_list, get_data_fn, sample_size, client, global_valid_df_in,
                family='normal'):
 
@@ -33,7 +58,9 @@ def incr_build(model, target_var, start_list, add_list, get_data_fn, sample_size
     build_list = start_list
     global_valid_df = global_valid_df_in.copy()
     global_valid_df['model_glm_inc'] = np.full((global_valid_df.shape[0]), 0.0)
-    
+    #h(borr_orig_fico, (600,700,750,775,800), 0)
+#    model='spread~lag_avg_spread + ln_orig_term + borr_dti + ln_mi_pct + rt_orig_mort +  h(ln_orig_ltv,(10, 60, 100),0) + h(borr_orig_fico,(600, 700, 750, 775, 800),0)'
+#    model+= '+ h(delta_mort,(-.5, 0, .5),0) + c(coborr_flag,N) + c(prop_num_unit,1)+ c(prop_occ_cd,P) + c(slr_chan_cd,R) + c(prop_type_cd,SF) + c(ln_purp_cd,R) + c(prop_st,CA) + c(ln_mi_type_cd,!)'#  + c(prop_st,CA)'
     rmse_valid = []
     corr_valid = []
     segs = []

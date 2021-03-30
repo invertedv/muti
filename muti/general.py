@@ -293,7 +293,7 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
     The first is a set of paired boxplots of the model output and target 'y' grouped by values of the feature.
     The second is a plot of the mean model output versus mean target 'y' grouped by values of the feature.
 
-    :param features: features to generate plots for, key is feature name, value is 'cts', 'cat', 'emb'.
+    :param features: features to generate plots for, key is feature name, value is 'cts'/'spl', 'cat', 'emb'.
     :type features: dict
     :param targets: dict with keys 'model_output' and 'target' that point to columns in sample_df_in
     :type targets dict
@@ -343,7 +343,7 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
     yh = targets['model_output']
     
     for feature in features.keys():
-        if features[feature][0] == 'cts':
+        if features[feature][0] == 'cts' or features[feature][0] == 'spl':
             us = np.arange(num_quantiles + 1) / num_quantiles
             quantiles = sample_df[feature].quantile(us).unique()
             quantiles[0] -= 1.0

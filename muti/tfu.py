@@ -48,7 +48,7 @@ def build_column(feature_name, feature_params, out_path=None):
     :param feature_name: name of the feature
     :type feature_name: str
     :param feature_params:
-        Element 0: type of feature ('cts', 'cat', 'emb').
+        Element 0: type of feature ('cts'/'spl', 'cat', 'emb').
         Element 1: ('cat', 'emb') vocabulary list (list of levels)
         Element 2: ('cat', 'emb') default index. If None, 0 is used
         Element 3: ('emb') embedding dimension
@@ -58,7 +58,7 @@ def build_column(feature_name, feature_params, out_path=None):
     :return: tf feature column and (for 'cat' and 'emb') a list of levels (vocabulary)
     """
     
-    if feature_params[0] == 'cts':
+    if feature_params[0] == 'cts' or feature_params[0] == 'spl':
         print('col {0} is numeric'.format(feature_name))
         return tf.feature_column.numeric_column(feature_name)
     # categorical and embedded features
@@ -101,7 +101,7 @@ def build_model_cols(feature_dict, out_vocab_dir=None):
     the inputs_* are the inputs to those layers.
     
     :param feature_dict: dictionary of features to build columns for. The key is the feature name. The entry is a list:
-                feature type (str)  'cts', 'cat', 'emb'
+                feature type (str)  'cts'/'spl', 'cat', 'emb'
                 list of unique levels for 'cat' and 'emb'
                 embedding dimension for 'emb'
     :param out_vocab_dir: directory to write out unique levels
@@ -119,7 +119,7 @@ def build_model_cols(feature_dict, out_vocab_dir=None):
     inputs_cts = {}
     inputs_cat = {}
     for feature in feature_dict.keys():
-        if feature_dict[feature][0] == 'cts':
+        if feature_dict[feature][0] == 'cts' or feature_dict[feature][0] == 'spl':
             feat = build_column(feature, feature_dict[feature])
             tf_cols_cts += [feat]
             inputs_cts[feature] = tf.keras.Input(shape=(1,), name=feature)
@@ -334,7 +334,7 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
             yhall = None
             i = sample_df['grp'] == 'grp' + str(j)
             
-            if features_dict[target][0] == 'cts':
+            if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
                 qs = sample_df.loc[i, target].quantile([.1, .2, .3, .4, .5, .6, .7, .8, .9]).unique()
                 nobs = qs.shape[0]
                 xval = np.array(qs).flatten()
@@ -377,7 +377,7 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
                     xall = np.append(xall, np.array(score_df[target]).flatten())
             
             # create grouped boxplots based on the values of the target feature
-            if features_dict[target][0] == 'cts':
+            if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
                 xv = pd.DataFrame({'x': [str(round(x, 2)) for x in xall], 'yh': yhall})
                 fig.add_trace(go.Box(x=xv['x'], y=xv['yh']), row=1, col=j + 1)
             else:
