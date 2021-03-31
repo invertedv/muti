@@ -202,11 +202,9 @@ def incr_build(model, start_list, add_list, get_data_fn, sample_size, feature_di
     for j, valid in enumerate(add_list):
         segs += [valid]
         model_df = get_data_fn(build_list, sample_size, client)
-        print(model_df['vintage'].value_counts())
         model_ds = get_tf_dataset(feature_dict, target_var, model_df, batch_size=batch_size)
         
         valid_df = get_data_fn([valid], sample_size, client)
-        print(valid_df['vintage'].value_counts())
         valid_ds = get_tf_dataset(feature_dict, target_var, valid_df, batch_size=batch_size, repeats=1)
         
         print('Data sizes for out-of-sample value {0}: build {1}, validate {2}'.format(valid, model_df.shape[0],

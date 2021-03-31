@@ -286,7 +286,7 @@ def decile_plot(score_variable, binary_variable, xlab='Score', ylab='Actual', ti
 
 
 def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles=10,
-                   boot_samples=1000, boot_coverage=0.95):
+                   boot_samples=1000, boot_coverage=0.95, extra_title=None):
     """
     Generates two plots to assess model fit.
 
@@ -305,6 +305,8 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
     :type num_quantiles: int
     :param boot_samples: # of bootstrap samples to take
     :type boot_samples: int
+    :param extra_title: optional second title line
+    :type extra_title: str
     :param boot_coverage: coverage of bootstrap CI
     :type boot_coverage: float
 
@@ -383,7 +385,10 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
         minv = min([co[y].min(), co[yh].min()])
         maxv = max([co[y].max(), co[yh].max()])
         fig1 += [go.Scatter(x=[minv, maxv], y=[minv, maxv], mode='lines', line=dict(color='red'), name='')]
-        layout1 = go.Layout(title=dict(text='mean Model vs Actual Grouped by ' + feature, x=0.5, xref='paper',
+        title = 'mean Model vs Actual Grouped by ' + feature
+        if extra_title is not None:
+            title += '<br>' + extra_title
+        layout1 = go.Layout(title=dict(text=title, x=0.5, xref='paper',
                                        font=dict(size=24)),
                             xaxis=dict(title='Model Output'),
                             yaxis=dict(title=y),
