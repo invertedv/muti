@@ -43,13 +43,23 @@ def incr_build(model, target_var, start_list, add_list, get_data_fn, sample_size
     This function is the GLM counterpart to incr_build
 
     :param model: model specification for glm
+    :type model: str
     :param target_var: response variable we're modeling
+    :type target_var: str
     :param start_list: list of (general) time periods for model build for the first model build
+    :type start_list: list
     :param add_list: list of out-of-time periods to evaluate
+    :type add_list: list
     :param get_data_fn: function to get a pandas DataFrame of data to work on
+    :type get_data_fn: function
     :param sample_size: size of pandas DataFrames to get
-    :param client: clickhouse_driver.Client
+    :type sample_size: int
+    :param client: db connector
+    :type client: clickhouse_driver.Client
     :param family: family of the model ('normal' or 'binomial')
+    :type family: str
+    :param global_valid_df_in: pandas DataFrame covering all the values of add_list for validation
+    :type global_valid_df_in: pandas DataFrame
     :return: lists of out-of-sample values:
              add_list
              rmse  root mean squared error

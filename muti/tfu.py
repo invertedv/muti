@@ -27,8 +27,8 @@ def plot_history(history, groups=['loss'], metric='loss', first_epoch=0, title=N
     :type first_epoch: int
     :param title: title for plot
     :type title: str
-    :param plot_file: file name to plot to
-    :type plot_file: str
+    :param plot_dir: directory to plot to
+    :type plot_dir: str
     :param in_browser: if True display in browser
     :type in_browser: bool
     :return:
@@ -46,7 +46,7 @@ def plot_history(history, groups=['loss'], metric='loss', first_epoch=0, title=N
                        yaxis=dict(title=metric))
     figx = go.Figure(fig, layout=layout)
     if in_browser:
-      figx.show()
+        figx.show()
     if plot_dir is not None:
         plot_file = plot_dir + 'png/history.png'
         figx.write_image(plot_file)
@@ -175,20 +175,35 @@ def incr_build(model, start_list, add_list, get_data_fn, sample_size, feature_di
     At the next step, the data in the first element of add_list is added to the start_list data, the model
     is updated and the evaluation is conducted on the second element of add_list
     
-    :param model: tf keras model
+    :param model: input model structure
+    :type model: tf keras model
     :param start_list: list of (general) time periods for model build for the first model build
+    :type start_list: list
     :param add_list: list of out-of-time periods to evaluate
+    :type add_list: list
     :param get_data_fn: function to get a pandas DataFrame of data to work on
+    :type get_data_fn: function
     :param sample_size: size of pandas DataFrames to get
+    :type sample_size: int
     :param feature_dict: dictionary of features in the model
+    :type feature_dict: dict
     :param target_var: target variable of model build
-    :param client: clickhouse_driver.Client
+    :type target_var: str
+    :param client: db connector
+    :type client: clickhouse_driver.Client
     :param batch_size: size of batches for model build
+    :type batch_size: int
     :param epochs_list: list (length 2) of epochs for model fit; entry 0 is initial model, entry 1 is subsequent
                         models
+    :type epochs_list: list
     :param steps_per_epoch: steps_per_epoch for keras model fit
+    :type steps_per_epoch: int
+    :param global_valid_df_in: DataFrame that includes all the segments in add_list -- for validation
+    :type global_valid_df_in: pandas DataFrame
     :param model_dir: directory to save models
+    :type model_dir: str
     :param plot: if True, plot history
+    :type plot: bool
     :param verbose: print verobisity for keras.fit (0 = quiet, 1 = normal level, 2=talkative)
     :return: lists of out-of-sample values:
              add_list

@@ -9,6 +9,7 @@ import plotly.io as pio
 import scipy.stats as stats
 import math
 
+
 def r_square(yh, y):
     """
     find the r-square for the model implied by yh
