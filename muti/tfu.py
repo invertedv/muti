@@ -2,6 +2,8 @@
 Utilities that help with the building of tensorflow keras models
 
 """
+
+import muti.general as gen
 import tensorflow as tf
 import os
 import math
@@ -222,7 +224,7 @@ def incr_build(model, start_list, add_list, get_data_fn, sample_size, feature_di
         
         print('Data sizes for out-of-sample value {0}: build {1}, validate {2}'.format(valid, model_df.shape[0],
                                                                                        valid_df.shape[0]))
-        print('Build list: {0}'.format(build_list))
+        # print('Build list: {0}'.format(build_list))
 
         history = model.fit(model_ds, epochs=epochs, steps_per_epoch=steps_per_epoch,
                             validation_data=valid_ds, verbose=verbose)
@@ -245,8 +247,7 @@ def incr_build(model, start_list, add_list, get_data_fn, sample_size, feature_di
         res = valid_df[target_var] - yh.flatten()
         mse_valid += [math.sqrt(np.square(res).mean())]
         valid_df['yh'] = yh
-        cor = valid_df[[target_var, 'yh']].corr()
-        cor = float(cor.iloc[0]['yh'])
+        cor = gen.r_square(valid_df['yh'], valid_df[target_var])
         corr_valid += [cor]
         epochs = epochs_list[1]
 

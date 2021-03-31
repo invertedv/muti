@@ -1,4 +1,5 @@
 from modeling.glm import glm
+import muti.general as gen
 import numpy as np
 import math
 
@@ -67,7 +68,7 @@ def incr_build(model, target_var, start_list, add_list, get_data_fn, sample_size
         valid_df = get_data_fn([valid], sample_size, client)
         print('Data sizes for out-of-sample value {0}: build {1}, validate {2}'.format(valid, model_df.shape[0],
                                                                                        valid_df.shape[0]))
-        print('Build list: {0}'.format(build_list))
+        # print('Build list: {0}'.format(build_list))
         
         glm_model = glm(model, model_df, family=family)
         build_list += [valid]
@@ -80,8 +81,7 @@ def incr_build(model, target_var, start_list, add_list, get_data_fn, sample_size
         res = valid_df[target_var] - np.array(yh).flatten()
         rmse_valid += [math.sqrt(np.square(res).mean())]
         valid_df['yh'] = yh
-        cor = valid_df[[target_var, 'yh']].corr()
-        cor = float(cor.iloc[0]['yh'])
+        cor = gen.r_square(valid_df['yh'], valid_df[target_var])
         corr_valid += [cor]
     
     return segs, rmse_valid, corr_valid, global_valid_df

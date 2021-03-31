@@ -9,6 +9,22 @@ import plotly.io as pio
 import scipy.stats as stats
 import math
 
+def r_square(yh, y):
+    """
+    find the r-square for the model implied by yh
+    
+    :param yh: model output
+    :type yh: pd.Series or nd.array
+    :param y: actual values
+    :type y: pd.Series or nd.array
+    :return: r-squared
+    :rtype float
+    """
+    res_full = y - yh
+    res_reduced = y - y.mean()
+    r2 = 100.0 * (1.0 - np.square(res_full).sum() / np.square(res_reduced).sum())
+    return float(r2)
+
 
 def get_unique_levels(feature, client, db, table):
     """
@@ -30,18 +46,28 @@ def get_unique_levels(feature, client, db, table):
     return [u[0] for u in uf]
 
 
-def cont_hist(yh, y, title='2D Contour Histogram', xlab='Model Output', ylab='Y', subtitle=None, out_file=None):
+def cont_hist(yh, y, title='2D Contour Histogram', xlab='Model Output', ylab='Y', subtitle=None, plot_dir=None,
+              in_browser=False):
     """
     Make a 2D contour histogram plot of y vs yh.
     The plot is produced in the browser and optionally written to a file.
     
     :param yh: Model outputs
+    :type yh: nd.array or pd.Series
     :param y: Target value
+    :type y: nd.array or pd.Series
     :param title: Title for plot
+    :type title: str
     :param xlab: x-axis label
+    :type xlab: str
     :param ylab: y-axis label
+    :type ylab: str
     :param subtitle: optional subtitle
-    :param out_file: optional file to write graph to
+    :type subtitle: str
+    :param plot_dir: optional file to write graph to
+    :type plot_dir: str
+    :param in_browser: if True plot to browser
+    :type in_browser: bool
     :return:
     """
     
@@ -58,9 +84,11 @@ def cont_hist(yh, y, title='2D Contour Histogram', xlab='Model Output', ylab='Y'
                        xaxis=dict(title=xlab),
                        yaxis=dict(title=ylab))
     figx = go.Figure(fig, layout=layout)
-    figx.show()
-    if out_file is not None:
-        figx.write_image(out_file)
+    if in_browser:
+        figx.show()
+    if plot_dir is not None:
+        figx.write_image(plot_dir + 'png/model_fit.png')
+        figx.write_html(plot_dir + 'html/model_fit.html')
 
 
 def ks_calculate(score_variable, binary_variable, plot=False, xlab='Score', ylab='CDF', title='KS Plot',
@@ -410,14 +438,14 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
             if co.shape[0] > 10:
                 figx.update_layout(width=1800, height=600)
                 
-            fname = plot_dir + 'png\BoxPlotModelFit' + feature + '.png'
+            fname = plot_dir + 'png/BoxPlotModelFit' + feature + '.png'
             figx.write_image(fname)
 
-            fname = plot_dir + 'html\BoxPlotModelFit' + feature + '.html'
+            fname = plot_dir + 'html/BoxPlotModelFit' + feature + '.html'
             figx.write_html(fname)
 
-            fname = plot_dir + 'png\CrossMeanModelFit' + feature + '.png'
+            fname = plot_dir + 'png/CrossMeanModelFit' + feature + '.png'
             figx1.write_image(fname)
             
-            fname = plot_dir + 'html\CrossMeanModelFit' + feature + '.html'
+            fname = plot_dir + 'html/CrossMeanModelFit' + feature + '.html'
             figx1.write_html(fname)
