@@ -12,15 +12,23 @@ import plotly.io as pio
 from plotly.subplots import make_subplots
 
 
-def plot_history(history, groups=['loss'], metric='loss', first_epoch=0, title=None, plot_file=None):
+def plot_history(history, groups=['loss'], metric='loss', first_epoch=0, title=None, plot_dir=None, in_browser=False):
     """
     plot the history of metrics from a keras model tf build
     :param history: history returned from keras fit
+    :type history: tf.keras.History class
     :param groups: groups to plot
+    :type groups: list
     :param metric: metric to plot
+    :type metric: str
     :param first_epoch: first element to plot
+    :type first_epoch: int
     :param title: title for plot
+    :type title: str
     :param plot_file: file name to plot to
+    :type plot_file: str
+    :param in_browser: if True display in browser
+    :type in_browser: bool
     :return:
     """
     pio.renderers.default = 'browser'
@@ -35,9 +43,14 @@ def plot_history(history, groups=['loss'], metric='loss', first_epoch=0, title=N
                        xaxis=dict(title='Epoch'),
                        yaxis=dict(title=metric))
     figx = go.Figure(fig, layout=layout)
-    figx.show()
-    if plot_file is not None:
-        fig.write_image(plot_file)
+    if in_browser:
+      figx.show()
+    if plot_dir is not None:
+        plot_file = plot_dir + 'png/history.png'
+        figx.write_image(plot_file)
+
+        plot_file = plot_dir + 'html/history.html'
+        figx.write_html(plot_file)
 
 
 def build_column(feature_name, feature_params, out_path=None):
@@ -240,7 +253,8 @@ def incr_build(model, start_list, add_list, get_data_fn, sample_size, feature_di
     return segs, mse_valid, corr_valid, global_valid_df
 
 
-def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None, num_sample=100, cat_top=10):
+def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None, num_sample=100, cat_top=10,
+             in_browser=False):
     """
     Generate plots to illustrate the marginal effects of the model 'model'. Live plots are output to the default
     browser and, optionally, png's are written to plot_dir
@@ -288,15 +302,14 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     :type num_sample: int
     :param cat_top: maximum number of levels of categorical variables to plot
     :type cat_top: int
+    :param in_browser: if True, plot in browser
+    :type in_browser: bool
     :return: for each target, the range of the median across the target levels for each model output group
     :rtype dict
     """
     if plot_dir is not None:
         if plot_dir[-1] != '/':
             plot_dir += '/'
-        if os.path.isdir(plot_dir):
-            os.system('rm -r ' + plot_dir)
-        os.makedirs(plot_dir)
     pio.renderers.default = 'browser'
     
     sample_df = sample_df_in.copy()
@@ -402,11 +415,15 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
             fig['layout']['yaxis' + str(jj + 1)]['range'] = [miny, maxy]
         for jj in range(1, num_grp):
             fig['layout']['yaxis' + str(jj + 1)]['showticklabels'] = False
-        fig.show()
+        if in_browser:
+            fig.show()
         if plot_dir is not None:
+            fname = plot_dir + 'html/' + target + '.html'
+            fig.write_html(fname)
+            
             # needed for png to look decent
             fig.update_layout(width=1800, height=600)
-            fname = plot_dir + target + '.png'
+            fname = plot_dir + 'png/' + target + '.png'
             fig.write_image(fname)
 
     imp_df = pd.DataFrame(importance, index=['max median range']).transpose()

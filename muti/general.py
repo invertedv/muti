@@ -286,7 +286,7 @@ def decile_plot(score_variable, binary_variable, xlab='Score', ylab='Actual', ti
 
 
 def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles=10,
-                   boot_samples=1000, boot_coverage=0.95, extra_title=None):
+                   boot_samples=1000, boot_coverage=0.95, extra_title=None, in_browser=False):
     """
     Generates two plots to assess model fit.
 
@@ -307,6 +307,8 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
     :type boot_samples: int
     :param extra_title: optional second title line
     :type extra_title: str
+    :param in_browser: True means also show in browser
+    :type in_browser: bool
     :param boot_coverage: coverage of bootstrap CI
     :type boot_coverage: float
 
@@ -371,7 +373,8 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
         
         figx = go.Figure(fig, layout=layout)
         figx.update_layout(boxmode='group')
-        #figx.show()
+        if in_browser:
+            figx.show()
         
         co = sample_df.groupby(feature)[[y, yh]].mean()
         fig1 = [go.Scatter(x=co[yh], y=co[y], mode='markers', name='',
@@ -399,14 +402,22 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
         xlab = 'Bootstrap CI at {0:.0f}% coverage'.format(100 * boot_coverage)
         figx1.add_annotation(text=xlab, font=dict(size=10), x=0.5, xanchor='center', xref='paper', y=0,
                              yanchor='top', yref='paper', yshift=-50, showarrow=False)
-        figx1.show()
+        if in_browser:
+            figx1.show()
         if plot_dir is not None:
             if plot_dir[-1] != '/':
                 plot_dir += '/'
             if co.shape[0] > 10:
                 figx.update_layout(width=1800, height=600)
-            fname = plot_dir + feature + 'ModelFitBoxPlot.png'
+                
+            fname = plot_dir + 'png\BoxPlotModelFit' + feature + '.png'
             figx.write_image(fname)
-            
-            fname = plot_dir + feature + 'ModelFitCrossMean.png'
+
+            fname = plot_dir + 'html\BoxPlotModelFit' + feature + '.html'
+            figx.write_html(fname)
+
+            fname = plot_dir + 'png\CrossMeanModelFit' + feature + '.png'
             figx1.write_image(fname)
+            
+            fname = plot_dir + 'html\CrossMeanModelFit' + feature + '.html'
+            figx1.write_html(fname)
