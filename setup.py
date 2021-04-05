@@ -9,6 +9,6 @@ setup(
     author='William Alexander',
     author_email='will@invertedv.com',
     install_requires=['numpy', 'pandas', 'tensorflow', 'plotly', 'scipy', 'kaleido',
-                      'modeling @ git+https://github.com/invertedv/modeling'],
+                      'modeling'],
 description='Tools for regression modeling'
 )
