@@ -3,7 +3,7 @@ Utilities that help with the building of tensorflow keras models
 
 """
 
-import muti.general as gen
+import muti.genu as gen
 import tensorflow as tf
 import os
 import math

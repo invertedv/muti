@@ -1,5 +1,5 @@
 from modeling.glm import glm
-import muti.general as gen
+import muti.genu as gen
 import numpy as np
 import math
 
