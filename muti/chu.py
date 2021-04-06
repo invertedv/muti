@@ -19,20 +19,27 @@ def make_connection():
     return client
 
 
-def run_query(query_or_file, client, is_file=False, replace_source=None, replace_dest=None):
+def run_query(query_or_file, client, is_file=False, return_df=False, replace_source=None, replace_dest=None):
     """
+
     Run a clickhouse query.
-
-    query_or_file    str    either a query to run or a file containing a query to run
-    client           clickhouse Client
-    is_file          bool   True means the first argument is a file name
-
-    The query can contain a string that can be replaced so the query can be more broadly applied
-
-    replace_source   str    text in the query to replace
-    replace_dest     str    text to put into the query
-
+    
+    :param query_or_file: either a query to run or a file containing a query to run
+    :type query_or_file: str
+    :param client: clickhouse Client
+    :type client: clickhouse_driver.Client
+    :param is_file: True means the first argument is a file name
+    :type is_file: bool
+    :param return_df: True means return the output as a DataFrame
+    :type return_df: bool
+    :param replace_source: text in the query to replace
+    :type replace_source str or list of str
+    :param replace_dest: text to put into the query
+    :type replace_dest: str or list of str
+    :return: pandas DataFrame if return_df=True
+    :rtype DataFrame
     """
+
     query = query_or_file
     if is_file:
         query = ""
@@ -47,6 +54,9 @@ def run_query(query_or_file, client, is_file=False, replace_source=None, replace
             query = query.replace(src, replace_dest[j])
     elif replace_source is not None:
         query = query.replace(replace_source, replace_dest)
+    if return_df:
+        df = client.query_dataframe(query)
+        return df
     client.execute(query)
 
 
