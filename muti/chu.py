@@ -3,6 +3,7 @@ Utilities that help with clickhouse
 
 """
 
+
 def make_connection():
     """
       Connects to the local clickhouse server
@@ -13,6 +14,9 @@ def make_connection():
     # establish connect, in this case to local server
     client = Client(host='localhost')
     
+    # Consider using:
+    # client = Client(host='localhost', settings={'use_numpy': True})
+
     # give queries more room to execute
     client.execute("SET max_memory_usage = 40000000000;")
     client.execute("SET max_bytes_before_external_group_by=20000000000;")

@@ -14,6 +14,28 @@ import plotly.io as pio
 from plotly.subplots import make_subplots
 
 
+def get_pred(yh, column=None):
+    """
+    Returns an array of predicted values from a keras predict method. If column is None, then this
+    assumes the output has one column and it returns a flattened array.
+    If column is an int, it returns that column from the prediction matrix.
+    If column is a list of int, it returns the column sums
+    
+    :param yh: keras model prediction
+    :type yh: keras.model.predict() output
+    :param column: which column(s) to return
+    :type column: int or list of int
+    :return: prediction array
+    :rtype ndarray
+    """
+    if column is None:
+        return np.array(yh).flatten()
+    if not isinstance(column, list):
+        return yh[:, column]
+    # sum up columns
+    return np.sum(yh[:, column], axis=1)
+
+
 def plot_history(history, groups=['loss'], metric='loss', first_epoch=0, title=None, plot_dir=None, in_browser=False):
     """
     plot the history of metrics from a keras model tf build
@@ -270,7 +292,7 @@ def incr_build(model, start_list, add_list, get_data_fn, sample_size, feature_di
 
 
 def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None, num_sample=100, cat_top=10,
-             in_browser=False):
+             in_browser=False, column=None):
     """
     Generate plots to illustrate the marginal effects of the model 'model'. Live plots are output to the default
     browser and, optionally, png's are written to plot_dir
@@ -297,7 +319,7 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
           into unobserved space is reduced. The
 
     Returns a metric that rates the importance of the feature to the model (e.g. sloping). It is calculated as:
-    
+
     - Within each model output segment,
         - calculate the median model output for each x value.
         - Then calculate the range of these medians.
@@ -323,6 +345,8 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     :return: for each target, the range of the median across the target levels for each model output group
     :rtype dict
     """
+ 
+    
     if plot_dir is not None:
         if plot_dir[-1] != '/':
             plot_dir += '/'
@@ -333,7 +357,7 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     sample_df['target'] = np.full(sample_df.shape[0], 0.0)
     score_ds = get_tf_dataset(features_dict, 'target', sample_df, sample_df.shape[0], 1)
     
-    sample_df['yh'] = np.array(model.predict(score_ds)).flatten()
+    sample_df['yh'] = get_pred(model.predict(score_ds), column)  # np.array(model.predict(score_ds)).flatten()
     rangey = sample_df['yh'].quantile([.01, .99])
     miny = float(rangey.iloc[0])
     maxy = float(rangey.iloc[1])
@@ -393,7 +417,7 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
                 score_df['target'] = np.full(nobs, 0.0)
                 score_ds = get_tf_dataset(features_dict, 'target', score_df, nobs, 1)
                 
-                yh = np.array(model.predict(score_ds)).flatten()
+                yh = get_pred(model.predict(score_ds), column)  # np.array(model.predict(score_ds)).flatten()
                 
                 # stack up the model outputs
                 if yhall is None:
@@ -413,7 +437,7 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
             # give the figure a title
             fig.update_annotations(sub_title='Group ' + str(j), row=1, col=j + 1)
             fig.update_traces(name='grp ' + str(j), row=1, col=j + 1)
-#            score_df['yh'] = yh
+            #            score_df['yh'] = yh
             medians = xv.groupby('x')['yh'].median()
             median_ranges += [medians.max() - medians.min()]
         
@@ -441,7 +465,7 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
             fig.update_layout(width=1800, height=600)
             fname = plot_dir + 'png/' + target + '.png'
             fig.write_image(fname)
-
+    
     imp_df = pd.DataFrame(importance, index=['max median range']).transpose()
     imp_df = imp_df.sort_values('max median range', ascending=False)
     return imp_df
