@@ -186,9 +186,9 @@ def get_tf_dataset(feature_dict, target, df, batch_size, repeats=None):
     return tf_ds
 
 
-def incr_build(model, start_list, add_list, get_data_fn, sample_size, feature_dict, target_var,
+def incr_build(model,  by_var, start_list, add_list, get_data_fn, sample_size, feature_dict, target_var,
                batch_size, epochs_list, global_valid_df_in,
-               model_dir=None, plot=False, verbose=0, **kwargs):
+               model_dir=None, plot=False, verbose=0, output_size = 1, **kwargs):
     """
     This function builds a sequence of models. The get_data_fn takes a list of values as contained in
     start_list and add_list and returns data subset to those values. The initial model is built on the
@@ -223,6 +223,9 @@ def incr_build(model, start_list, add_list, get_data_fn, sample_size, feature_di
     :param plot: if True, plot history
     :type plot: bool
     :param verbose: print verobisity for keras.fit (0 = quiet, 1 = normal level, 2=talkative)
+    :type verbose int
+    :param output_size: the number of columns returned by keras model predict
+    :type output_size: int
     :return: lists of out-of-sample values:
              add_list
              rmse  root mean squared error
@@ -238,34 +241,40 @@ def incr_build(model, start_list, add_list, get_data_fn, sample_size, feature_di
 
     build_list = start_list
     epochs = epochs_list[0]
-    mse_valid = []
-    corr_valid = []
     segs = []
 
     global_valid_df = global_valid_df_in.copy()
     # validation data
-    global_valid_df['model_dnn_inc'] = np.full((global_valid_df.shape[0]), 0.0)
+    if output_size == 1:
+        global_valid_df['model_dnn_inc'] = np.full((global_valid_df.shape[0]), 0.0)
+    else:
+        for c in range(output_size):
+          global_valid_df['model_dnn_inc' + str(c)] = np.full((global_valid_df.shape[0]), 0.0)
     global_valid_ds = get_tf_dataset(feature_dict, target_var, global_valid_df, 10000, 1)
 
     for j, valid in enumerate(add_list):
         segs += [valid]
-        model_df = get_data_fn(build_list, sample_size, kwargs)
+        model_df = get_data_fn(build_list, sample_size, **kwargs)
         steps_per_epoch = int(model_df.shape[0] / batch_size)
         model_ds = get_tf_dataset(feature_dict, target_var, model_df, batch_size=batch_size)
         
-        valid_df = get_data_fn([valid], sample_size, kwargs)
+        valid_df = get_data_fn([valid], sample_size, **kwargs)
         valid_ds = get_tf_dataset(feature_dict, target_var, valid_df, batch_size=batch_size, repeats=1)
         
         print('Data sizes for out-of-sample value {0}: build {1}, validate {2}'.format(valid, model_df.shape[0],
                                                                                        valid_df.shape[0]))
-        # print('Build list: {0}'.format(build_list))
 
         history = model.fit(model_ds, epochs=epochs, steps_per_epoch=steps_per_epoch,
                             validation_data=valid_ds, verbose=verbose)
         
-        gyh = np.array(model.predict(global_valid_ds)).flatten()
-        i = global_valid_df['vintage'] == valid
-        global_valid_df.loc[i, 'model_dnn_inc'] = gyh[i]
+        gyh = model.predict(global_valid_ds)
+        
+        i = global_valid_df[by_var] == valid
+        if output_size == 1:
+            global_valid_df.loc[i, 'model_dnn_inc'] = gyh[i]
+        else:
+            for c in range(output_size):
+                global_valid_df.loc[i, 'model_dnn_inc' + str(c)] = gyh[i][:,c]
 
         build_list += [valid]  # NOTE Accumulates
 #        build_list = [valid]   # NOTE Accumulates NOT
@@ -277,15 +286,9 @@ def incr_build(model, start_list, add_list, get_data_fn, sample_size, feature_di
             title = 'model loss\n' + 'Training up to ' + valid
             plot_history(history, ['loss', 'val_loss'], 'loss', title=title)
 
-        yh = model.predict(valid_ds)
-        res = valid_df[target_var] - yh.flatten()
-        mse_valid += [math.sqrt(np.square(res).mean())]
-        valid_df['yh'] = yh
-        cor = gen.r_square(valid_df['yh'], valid_df[target_var])
-        corr_valid += [cor]
         epochs = epochs_list[1]
 
-    return segs, mse_valid, corr_valid, global_valid_df
+    return segs, global_valid_df
 
 
 def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None, num_sample=100, cat_top=10,
