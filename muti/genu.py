@@ -166,8 +166,6 @@ def ks_calculate(score_variable, binary_variable, plot=False, xlab='Score', ylab
         fig = [go.Scatter(x=score0, y=u0, line=dict(color='black'))]
         fig += [go.Scatter(x=score1, y=u1, line=dict(color='black'))]
         
-#        fig += [go.Scatter(x=sc, y=uu0, line=dict(color='red'))]
-#        fig += [go.Scatter(x=sc, y=uu1, line=dict(color='red'))]
         maxx = score_variable.max()
         if subtitle is None:
             sub_title = "KS: " + str(ks)

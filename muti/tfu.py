@@ -292,7 +292,7 @@ def incr_build(model, start_list, add_list, get_data_fn, sample_size, feature_di
 
 
 def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None, num_sample=100, cat_top=10,
-             in_browser=False, column=None):
+             in_browser=False, column=None, title=None):
     """
     Generate plots to illustrate the marginal effects of the model 'model'. Live plots are output to the default
     browser and, optionally, png's are written to plot_dir
@@ -342,6 +342,10 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     :type cat_top: int
     :param in_browser: if True, plot in browser
     :type in_browser: bool
+    :param column: column or list of columns to use from keras model .predict
+    :type column: int or list of ints
+    :param title: optional additional title for graphs
+    :type title: str
     :return: for each target, the range of the median across the target levels for each model output group
     :rtype dict
     """
@@ -443,8 +447,12 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
         
         importance[target] = max(median_ranges)
         # overall title
+        titl = ''
+        if title is not None:
+            titl = title + '<br>' + titl
+        titl += 'Marginal Response for ' + target
         fig.update_layout(
-            title=dict(text='Marginal Response for ' + target, font=dict(size=24), xanchor='center', xref='paper',
+            title=dict(text=titl, font=dict(size=24), xanchor='center', xref='paper',
                        x=0.5), showlegend=False)
         # add label at bottom of graphs
         fig.add_annotation(text=target, font=dict(size=16), x=0.5, xanchor='center', xref='paper', y=0,
