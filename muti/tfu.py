@@ -187,8 +187,8 @@ def get_tf_dataset(feature_dict, target, df, batch_size, repeats=None):
 
 
 def incr_build(model, start_list, add_list, get_data_fn, sample_size, feature_dict, target_var,
-               client, batch_size, epochs_list, steps_per_epoch, global_valid_df_in,
-               model_dir=None, plot=False, verbose=0):
+               batch_size, epochs_list, global_valid_df_in,
+               model_dir=None, plot=False, verbose=0, **kwargs):
     """
     This function builds a sequence of models. The get_data_fn takes a list of values as contained in
     start_list and add_list and returns data subset to those values. The initial model is built on the
@@ -211,15 +211,11 @@ def incr_build(model, start_list, add_list, get_data_fn, sample_size, feature_di
     :type feature_dict: dict
     :param target_var: target variable of model build
     :type target_var: str
-    :param client: db connector
-    :type client: clickhouse_driver.Client
     :param batch_size: size of batches for model build
     :type batch_size: int
     :param epochs_list: list (length 2) of epochs for model fit; entry 0 is initial model, entry 1 is subsequent
                         models
     :type epochs_list: list
-    :param steps_per_epoch: steps_per_epoch for keras model fit
-    :type steps_per_epoch: int
     :param global_valid_df_in: DataFrame that includes all the segments in add_list -- for validation
     :type global_valid_df_in: pandas DataFrame
     :param model_dir: directory to save models
@@ -253,10 +249,11 @@ def incr_build(model, start_list, add_list, get_data_fn, sample_size, feature_di
 
     for j, valid in enumerate(add_list):
         segs += [valid]
-        model_df = get_data_fn(build_list, sample_size, client)
+        model_df = get_data_fn(build_list, sample_size, kwargs)
+        steps_per_epoch = int(model_df.shape[0] / batch_size)
         model_ds = get_tf_dataset(feature_dict, target_var, model_df, batch_size=batch_size)
         
-        valid_df = get_data_fn([valid], sample_size, client)
+        valid_df = get_data_fn([valid], sample_size, kwargs)
         valid_ds = get_tf_dataset(feature_dict, target_var, valid_df, batch_size=batch_size, repeats=1)
         
         print('Data sizes for out-of-sample value {0}: build {1}, validate {2}'.format(valid, model_df.shape[0],
