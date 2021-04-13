@@ -93,7 +93,7 @@ def cont_hist(yh, y, title='2D Contour Histogram', xlab='Model Output', ylab='Y'
 
 
 def ks_calculate(score_variable, binary_variable, plot=False, xlab='Score', ylab='CDF', title='KS Plot',
-                 subtitle=None, out_file=None):
+                 subtitle=None, out_file=None, in_browser=True):
     """
     Calculates the KS (Kolmogorov Smirnov) distance between two cdfs.  The KS statistic is 100 times the
     maximum vertical difference between the two cdfs
@@ -119,6 +119,8 @@ def ks_calculate(score_variable, binary_variable, plot=False, xlab='Score', ylab
     :type subtitle: str
     :param out_file file name for writing out the plot
     :type out_file: str
+    :param in_browser: if True, plots to browser
+    :type in_browser: bool
     :return: KS statistic (0 to 100),
     :rtype: float
 
@@ -176,16 +178,20 @@ def ks_calculate(score_variable, binary_variable, plot=False, xlab='Score', ylab
                            xaxis=dict(title=xlab, range=[0, maxx]),
                            yaxis=dict(title=ylab, range=[0, 1]))
         figx = go.Figure(fig, layout=layout)
-        figx.show()
+        if in_browser:
+            pio.renderers.default = 'browser'
+            figx.show()
         if out_file is not None:
-            figx.write_image(out_file)
+            figx.write_image(out_file + '.png')
+            fig.write_html(out_file + '.html')
+
 
     return ks
 
 
 def decile_plot(score_variable, binary_variable, xlab='Score', ylab='Actual', title='Decile Plot',
                 plot_maximum=None, plot_minimum=None, confidence_level=0.95, correlation=0, subtitle=None,
-                out_file=None):
+                out_file=None, in_browser=True):
     """
     This function creates the so-called decile plot.  The input data (score_variable, binary_variable) is
     divided into 10 equal groups based on the deciles of score_variable.  Within each decile, the values of the
@@ -217,6 +223,8 @@ def decile_plot(score_variable, binary_variable, xlab='Score', ylab='Actual', ti
     :type subtitle: str
     :param out_file file name for writing out the plot
     :type out_file: str
+    :param in_browser: if True, plots to browser
+    :type in_browser: bool
     :return: plot
     :rtype: N/A
     """
@@ -304,11 +312,13 @@ def decile_plot(score_variable, binary_variable, xlab='Score', ylab='Actual', ti
                         text=means_title,
                         showarrow=False,
                         xshift=1, xref='paper')
-    pio.renderers.default = 'browser'
-    figx.show()
+    if in_browser:
+        pio.renderers.default = 'browser'
+        figx.show()
     if out_file is not None:
-        figx.write_image(out_file)
-    
+        figx.write_image(out_file + '.png')
+        fig.write_html(out_file + '.html')
+
     return
 
 
