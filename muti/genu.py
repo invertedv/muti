@@ -93,7 +93,7 @@ def cont_hist(yh, y, title='2D Contour Histogram', xlab='Model Output', ylab='Y'
 
 
 def ks_calculate(score_variable, binary_variable, plot=False, xlab='Score', ylab='CDF', title='KS Plot',
-                 subtitle=None, out_file=None, in_browser=True):
+                 subtitle=None, plot_dir=None, out_file=None, in_browser=True):
     """
     Calculates the KS (Kolmogorov Smirnov) distance between two cdfs.  The KS statistic is 100 times the
     maximum vertical difference between the two cdfs
@@ -117,14 +117,14 @@ def ks_calculate(score_variable, binary_variable, plot=False, xlab='Score', ylab
     :type title: str
     :param subtitle: subtitle for the plot, optional (default=None)
     :type subtitle: str
+    :param plot_dir: directory to write plot to
+    :type plot_dir str
     :param out_file file name for writing out the plot
     :type out_file: str
     :param in_browser: if True, plots to browser
     :type in_browser: bool
     :return: KS statistic (0 to 100),
     :rtype: float
-
-
     """
     
     if isinstance(score_variable, np.ndarray):
@@ -182,16 +182,14 @@ def ks_calculate(score_variable, binary_variable, plot=False, xlab='Score', ylab
             pio.renderers.default = 'browser'
             figx.show()
         if out_file is not None:
-            figx.write_image(out_file + '.png')
-            fig.write_html(out_file + '.html')
-
-
+            figx.write_image(plot_dir + 'png/' + out_file + '.png')
+            figx.write_html(plot_dir + 'html/' + out_file + '.html')
     return ks
 
 
 def decile_plot(score_variable, binary_variable, xlab='Score', ylab='Actual', title='Decile Plot',
                 plot_maximum=None, plot_minimum=None, confidence_level=0.95, correlation=0, subtitle=None,
-                out_file=None, in_browser=True):
+                plot_dir=None, out_file=None, in_browser=True):
     """
     This function creates the so-called decile plot.  The input data (score_variable, binary_variable) is
     divided into 10 equal groups based on the deciles of score_variable.  Within each decile, the values of the
@@ -221,6 +219,8 @@ def decile_plot(score_variable, binary_variable, xlab='Score', ylab='Actual', ti
     :type correlation: float
     :param subtitle: subtitle for the plot, optional (default=None)
     :type subtitle: str
+    :param plot_dir: directory to write plot to
+    :type plot_dir: str
     :param out_file file name for writing out the plot
     :type out_file: str
     :param in_browser: if True, plots to browser
@@ -316,9 +316,8 @@ def decile_plot(score_variable, binary_variable, xlab='Score', ylab='Actual', ti
         pio.renderers.default = 'browser'
         figx.show()
     if out_file is not None:
-        figx.write_image(out_file + '.png')
-        fig.write_html(out_file + '.html')
-
+        figx.write_image(plot_dir + 'png/' + out_file + '.png')
+        figx.write_html(plot_dir + 'html/' + out_file + '.html')
     return
 
 
