@@ -57,6 +57,70 @@ def get_unique_levels(feature, client, db, table, cnt_min=None):
     return u, most_freq_level
 
 
+def get_closest(ul, field, target, db, table, client):
+    """
+    This function is designed to select the out-of-list default value for an embedding. It selects this value
+    as the in-list value which has target mean closest to the average value of all out-of-list values
+    
+    :param ul: in-list values
+    :type ul: list
+    :param field: name of field we're working on
+    :type field: str
+    :param target: target field used for assessing 'close'
+    :type target: str
+    :param db: database to use
+    :type db: str
+    :param table: table to use
+    :type table: str
+    :param client: clickhouse client
+    :type client: clickhouse_driver.client
+    :return: value of in-list elements with average closest to out-of-list averages
+    """
+    qry = """
+        /*
+          we have a feature that has lots of levels. Some levels are part of the embedding. For those that aren't
+          we want to find the default value -- that level which has the closest mean of a target to them.
+        
+          TTTT  list of values called out in embedding
+          XXXX  field we're working with
+          YYYY  target variable
+          ZZZZ  db.table to query
+         */
+        SELECT
+          XXXX,
+          avg(arrayAvg(YYYY)) AS in_avg,
+          (SELECT
+            avg(arrayAvg(YYYY))
+          FROM
+              ZZZZ
+          WHERE
+            trl12_pay_str not in (TTTT)) AS out_avg,
+          abs(in_avg - out_avg) AS mad
+        FROM
+          ZZZZ
+        WHERE
+          trl12_pay_str in (TTTT)
+        GROUP BY XXXX
+        ORDER BY mad
+        LIMIT 1
+    """
+    repl = ''
+    for j, u in enumerate(ul):
+        if j != 0:
+            repl += ', '
+        repl += "'" + u + "'"
+    
+    print(repl)
+    
+    df = chu.run_query(qry, client, return_df=True,
+                       replace_source=['TTTT', 'XXXX', 'YYYY', 'ZZZZ'],
+                       replace_dest=[repl, field, target, db + '.' + table])
+    print('Out-of-list element selection for field {0} using target {1}'.format(field, target))
+    print(df)
+    print('\n')
+    return df.iloc[0][field]
+
+
 def cont_hist(yh, y, title='2D Contour Histogram', xlab='Model Output', ylab='Y', subtitle=None, plot_dir=None,
               in_browser=False):
     """
