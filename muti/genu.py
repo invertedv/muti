@@ -2,6 +2,7 @@
 utilities that are helpful in general model building
 
 """
+import muti.chu as chu
 import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
@@ -27,9 +28,10 @@ def r_square(yh, y):
     return float(r2)
 
 
-def get_unique_levels(feature, client, db, table):
+def get_unique_levels(feature, client, db, table, cnt_min=None):
     """
     Retrieves the unique levels of the column 'feature' in the table 'table' of database db.
+    At most 1000 are returned.
 
     :param feature: column name in db.table to get unique levels
     :type feature: str
@@ -39,12 +41,20 @@ def get_unique_levels(feature, client, db, table):
     :type db: str
     :param table: table name
     :type table: str
-    :return: list of unique levels
-    :rtype list
+    :param cnt_min: minimum count for a level to be returned
+    :type cnt_min: int
+    :return: list of unique levels and the most frequent level
+    :rtype list, <value>
     """
-    qry = 'SELECT DISTINCT ' + feature + ' FROM ' + db + '.' + table + ' ORDER BY ' + feature
-    uf = client.execute(qry)
-    return [u[0] for u in uf]
+    qry = 'SELECT ' + feature + ' AS grp, count(*) AS nl FROM ' + db + '.' + table + ' GROUP BY grp'
+    if cnt_min is not None:
+        qry += ' HAVING nl > ' + str(cnt_min)
+    qry += ' ORDER BY nl DESC LIMIT 1000'
+    df = chu.run_query(qry, client, return_df=True)
+    most_freq_level = df.iloc[0]['grp']
+    df.sort_values('grp')
+    u = list(df['grp'])
+    return u, most_freq_level
 
 
 def cont_hist(yh, y, title='2D Contour Histogram', xlab='Model Output', ylab='Y', subtitle=None, plot_dir=None,
