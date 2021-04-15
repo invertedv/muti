@@ -110,8 +110,6 @@ def get_closest(ul, field, target, db, table, client):
             repl += ', '
         repl += "'" + u + "'"
     
-    print(repl)
-    
     df = chu.run_query(qry, client, return_df=True,
                        replace_source=['TTTT', 'XXXX', 'YYYY', 'ZZZZ'],
                        replace_dest=[repl, field, target, db + '.' + table])
