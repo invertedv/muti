@@ -31,7 +31,7 @@ def run_query(query_or_file, client, is_file=False, return_df=False, replace_sou
     :param query_or_file: either a query to run or a file containing a query to run
     :type query_or_file: str
     :param client: clickhouse Client
-    :type client: clickhouse_driver.Client
+    :type client: Client
     :param is_file: True means the first argument is a file name
     :type is_file: bool
     :param return_df: True means return the output as a DataFrame
@@ -50,7 +50,8 @@ def run_query(query_or_file, client, is_file=False, return_df=False, replace_sou
         f = open(query_or_file, 'r')
         while True:
             l = f.readline()
-            if not l: break
+            if not l:
+                break
             query += l
         f.close()
     if isinstance(replace_source, list):
@@ -64,7 +65,7 @@ def run_query(query_or_file, client, is_file=False, return_df=False, replace_sou
     client.execute(query)
 
 
-def import_flat_file(table_name, file_name, delim="|", format="CSV", options = ""):
+def import_flat_file(table_name, file_name, delim="|", format="CSV", options=""):
     """
       Import a CSV into a clickhouse table
 
@@ -82,4 +83,3 @@ def import_flat_file(table_name, file_name, delim="|", format="CSV", options = "
     cmd += ' --query "INSERT INTO ' + table_name + ' FORMAT ' + format + '"  < '
     cmd += file_name
     os.system(cmd)
-

@@ -2,7 +2,7 @@
 utilities that are helpful in general model building
 
 """
-import muti.chu as chu
+from muti import chu, tfu
 import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
@@ -10,6 +10,7 @@ import plotly.io as pio
 import scipy.stats as stats
 import math
 import os
+
 
 def r_square(yh, y):
     """
@@ -564,3 +565,62 @@ def make_dir_tree(base_path, dirs, rename_to=None):
         if base_path[-1] != '/':
             base_path += '/'
         os.makedirs(base_path + p)
+
+
+def fit_eval(df, yh, target_var, features, plot_dir, title, isin=None, in_browser=False, ilist=None, inames=None):
+    """
+    driver function for fit_by_feature and ks_calculate & decile_plot. The function:
+        - makes the necessary directories
+        - Pulls out the required levels of the target value (if isin != None)
+        - Calls fit_by_feature and ks_calculate, decile_plot
+        - Cycles through the subsets specified by ilist, creating KS and Decile plots
+
+    :param df: data frame with features in 'features' and target_var
+    :type df: pandas DataFrame
+    :param yh: output of keras.Model.Predict
+    :type yh: tf.keras.Model.Predict output
+    :param target_var: the target variable of the model. Must be a column of df.
+    :type title: str
+    :param features: dict returned by build_feature_dict
+    :type features: dict
+    :param plot_dir: directory to write graphs to. It will be created, plus subdirectories png & html
+    :type plot_dir: str
+    :param title: Title for plots
+    :type title: str
+    :param isin: list of values of target_var to base the plots on
+    :type isin: list of ints
+    :param in_browser: if True, also put plots in browser
+    :type in_browser: bool
+    :param ilist: list of booleans of length df.shape[0] to subset df by
+    :type ilist: list of ndarray of bool
+    :param inames: list of names describing each subset of ilist
+    :type inames: list of str
+    :return: <None>
+    """
+    if plot_dir[-1] != '/':
+        plot_dir += '/'
+    os.makedirs(plot_dir + 'effects/png')
+    os.makedirs(plot_dir + 'effects/html')
+    feats = features.copy()
+    feats['model'] = ['cts']
+    if isin is not None:
+        df['model'] = tfu.get_pred(yh, isin)
+        df['actual'] = df[target_var].isin(isin).astype(int)
+    else:
+        df['model'] = tfu.get_pred(yh)
+        df['actual'] = df[target_var]
+
+    targs = dict(model_output='model_output', target='actual')
+    fit_by_feature(feats, targs, df, plot_dir + 'effects/', in_browser=in_browser,
+                   boot_samples=100, extra_title=title)
+    
+    ks_calculate(df['model'], df['actual'], plot=True, title=title, plot_dir=plot_dir + 'ks_decile/',
+                 out_file='all_ks', in_browser=in_browser)
+    decile_plot(df['model'], df['actual'], title=title, plot_dir=plot_dir + 'ks_decile/',
+                out_file='all_decile', in_browser=in_browser)
+    if ilist is not None:
+        for j, i in enumerate(ilist):
+            ks_calculate(df.loc[i]['model'].copy(), df.loc[i]['actual'].copy(), plot=True, title=title,
+                         plot_dir=plot_dir + 'ks_decile/', out_file=inames[j] + '_ks', in_browser=in_browser)
+            decile_plot(df['model'], df['actual'], title=title, plot_dir=plot_dir + 'ks_decile/',
+                        out_file=inames[j] + '_decile', in_browser=in_browser)
