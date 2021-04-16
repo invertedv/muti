@@ -87,21 +87,21 @@ def get_closest(ul, field, target, db, table, client):
           ZZZZ  db.table to query
          */
         SELECT
-          XXXX,
+          XXXX AS grp,
           avg(arrayAvg(YYYY)) AS in_avg,
           (SELECT
             avg(arrayAvg(YYYY))
           FROM
               ZZZZ
           WHERE
-            trl12_pay_str not in (TTTT)) AS out_avg,
+            XXXX not in (TTTT)) AS out_avg,
           abs(in_avg - out_avg) AS mad
         FROM
           ZZZZ
         WHERE
-          trl12_pay_str in (TTTT)
-        GROUP BY XXXX
-        ORDER BY mad
+          grp in (TTTT)
+          GROUP BY grp
+          ORDER BY mad
         LIMIT 1
     """
     repl = ''
@@ -116,7 +116,7 @@ def get_closest(ul, field, target, db, table, client):
     print('Out-of-list element selection for field {0} using target {1}'.format(field, target))
     print(df)
     print('\n')
-    return df.iloc[0][field]
+    return df.iloc[0]['grp']
 
 
 def cont_hist(yh, y, title='2D Contour Histogram', xlab='Model Output', ylab='Y', subtitle=None, plot_dir=None,
