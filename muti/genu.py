@@ -9,7 +9,7 @@ import plotly.graph_objs as go
 import plotly.io as pio
 import scipy.stats as stats
 import math
-
+import os
 
 def r_square(yh, y):
     """
@@ -529,3 +529,38 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
             
             fname = plot_dir + 'html/CrossMeanModelFit' + feature + '.html'
             figx1.write_html(fname)
+
+
+def make_dir_tree(base_path, dirs, rename_to=None):
+    """
+    Create a directory structure.
+    The directory structure is created under base_path.  If base_path already exists, it is renamed to
+    rename_to if that exists, otherwise it is **deleted**.
+
+    dirs is a list that contains end-point directories (there is no need to specify directories higher
+    up the tree).
+
+    :param base_path: base path to (and *including*) the top-level directory of the structure
+    :type base_path: str
+    :param dirs: structure to build: list of 'leaf' directories
+    :type dirs: list
+    :param rename_to: if an existing structure is found, what to rename it to.
+    :type rename_to: str
+    :return: <none>
+    """
+    
+    def check_path(path, new_name):
+        if os.path.isdir(path):
+            if rename_to is not None:
+                if os.path.isdir(new_name):
+                    raise IsADirectoryError(new_name + ' already exists')
+                os.system('mv ' + path + ' ' + new_name)
+            else:
+                os.system('rm -r ' + path)
+    
+    check_path(base_path, rename_to)
+    os.makedirs(base_path)
+    for p in dirs:
+        if base_path[-1] != '/':
+            base_path += '/'
+        os.makedirs(base_path + p)
