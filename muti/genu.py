@@ -603,10 +603,10 @@ def fit_eval(mod, df, yh, target_var, features, plot_dir, title, isin=None,
     """
     if plot_dir[-1] != '/':
         plot_dir += '/'
+    os.makedirs(plot_dir + 'marginal/overall/png', exist_ok=True)
+    os.makedirs(plot_dir + 'marginal/overall/html', exist_ok=True)
     os.makedirs(plot_dir + 'effects/png', exist_ok=True)
     os.makedirs(plot_dir + 'effects/html', exist_ok=True)
-    os.makedirs(plot_dir + 'marginal/png', exist_ok=True)
-    os.makedirs(plot_dir + 'marginal/html', exist_ok=True)
     os.makedirs(plot_dir + 'ks_decile/png', exist_ok=True)
     os.makedirs(plot_dir + 'ks_decile/html', exist_ok=True)
     feats = features.copy()
@@ -622,7 +622,7 @@ def fit_eval(mod, df, yh, target_var, features, plot_dir, title, isin=None,
     targs = dict(model_output='model', target='actual')
     fit_by_feature(feats, targs, df, plot_dir + 'effects/', in_browser=in_browser,
                    boot_samples=100, extra_title=title)
-    importance = tfu.marginal(mod, features, features, df, plot_dir + 'marginal/overall', in_browser=in_browser, column=isin,
+    importance = tfu.marginal(mod, features, features, df, plot_dir + 'marginal/overall/', in_browser=in_browser, column=isin,
                  title=title)
     ks_calculate(df['model'], df['actual'], plot=True, title=title, plot_dir=plot_dir + 'ks_decile/',
                  out_file='all_ks', in_browser=in_browser)
@@ -640,8 +640,34 @@ def fit_eval(mod, df, yh, target_var, features, plot_dir, title, isin=None,
             decile_plot(df.loc[i]['model'], df.loc[i]['actual'], title=title + ' ' + k, plot_dir=plot_dir + 'ks_decile/',
                         out_file=k + '_decile', in_browser=in_browser)
             out_dir = plot_dir + 'marginal/' + k + '/'
-            os.makedirs(out_dir, exist_ok=True)
+            os.makedirs(out_dir + 'png', exist_ok=True)
+            os.makedirs(out_dir + 'html', exist_ok=True)
             importance = tfu.marginal(mod, features, features, df, out_dir, in_browser=in_browser, column=isin,
                          title=title)
             out_dict[k] = importance
     return out_dict
+
+
+def importance_ranking_print(imp_dict, keys, title):
+    """
+    Find and print importance ranking for the output of genu.fit_eval.
+
+    :param imp_dict: output of genu.fit_eval
+    :type imp_dict: dict
+    :param keys: list of keys of imp_dict to print
+    :type keys: list
+    :param title: title to print
+    :type title: str
+    :return: None
+    """
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.width', 1000)
+    pd.set_option('display.colheader_justify', 'center')
+    x = (-imp_dict[keys[0]]).rank()
+    x = x.rename(columns={x.columns[0]: keys[0]})
+    for j, k in enumerate(keys):
+        if j > 0:
+            y = (-imp_dict[k]).rank()
+            y = y.rename(columns={y.columns[0]: k})
+            x = x.join(y)
+    print(x)
