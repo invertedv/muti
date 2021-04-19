@@ -559,15 +559,16 @@ def make_dir_tree(base_path, dirs, rename_to=None):
             else:
                 os.system('rm -r ' + path)
     
+    if base_path[-1] != '/':
+        base_path += '/'
     check_path(base_path, rename_to)
     os.makedirs(base_path)
     for p in dirs:
-        if base_path[-1] != '/':
-            base_path += '/'
         os.makedirs(base_path + p)
 
 
-def fit_eval(df, yh, target_var, features, plot_dir, title, isin=None, in_browser=False, ilist=None, inames=None):
+def fit_eval(mod, df, yh, target_var, features, plot_dir, title, isin=None,
+             in_browser=False, slice_dict=None, incl_ks = True):
     """
     driver function for fit_by_feature and ks_calculate & decile_plot. The function:
         - makes the necessary directories
@@ -575,6 +576,8 @@ def fit_eval(df, yh, target_var, features, plot_dir, title, isin=None, in_browse
         - Calls fit_by_feature and ks_calculate, decile_plot
         - Cycles through the subsets specified by ilist, creating KS and Decile plots
 
+    :param mod: keras model to evaluate
+    :type mod: tf.keras.Model
     :param df: data frame with features in 'features' and target_var
     :type df: pandas DataFrame
     :param yh: output of keras.Model.Predict
@@ -591,18 +594,23 @@ def fit_eval(df, yh, target_var, features, plot_dir, title, isin=None, in_browse
     :type isin: list of ints
     :param in_browser: if True, also put plots in browser
     :type in_browser: bool
-    :param ilist: list of booleans of length df.shape[0] to subset df by
-    :type ilist: list of ndarray of bool
-    :param inames: list of names describing each subset of ilist
-    :type inames: list of str
-    :return: <None>
+    :param slice_dict: dictionary of slices for ks/decile plots. key is the title and entry is a boolean array into df
+    :type slice_dict: dict
+    :param incl_ks: if True, generate KS plot, too
+    :type incl_ks: bool
+    :return: dictionary with the same keys as slice_dict (+ 'all') of importance values
+    :rtype dict
     """
     if plot_dir[-1] != '/':
         plot_dir += '/'
-    os.makedirs(plot_dir + 'effects/png')
-    os.makedirs(plot_dir + 'effects/html')
+    os.makedirs(plot_dir + 'effects/png', exist_ok=True)
+    os.makedirs(plot_dir + 'effects/html', exist_ok=True)
+    os.makedirs(plot_dir + 'marginal/png', exist_ok=True)
+    os.makedirs(plot_dir + 'marginal/html', exist_ok=True)
+    os.makedirs(plot_dir + 'ks_decile/png', exist_ok=True)
+    os.makedirs(plot_dir + 'ks_decile/html', exist_ok=True)
     feats = features.copy()
-    feats['model'] = ['cts']
+    feats['model_output'] = ['cts']
     if isin is not None:
         df['model'] = tfu.get_pred(yh, isin)
         df['actual'] = df[target_var].isin(isin).astype(int)
@@ -610,17 +618,30 @@ def fit_eval(df, yh, target_var, features, plot_dir, title, isin=None, in_browse
         df['model'] = tfu.get_pred(yh)
         df['actual'] = df[target_var]
 
-    targs = dict(model_output='model_output', target='actual')
+    df['model_output'] = df['model']
+    targs = dict(model_output='model', target='actual')
     fit_by_feature(feats, targs, df, plot_dir + 'effects/', in_browser=in_browser,
                    boot_samples=100, extra_title=title)
-    
+    importance = tfu.marginal(mod, features, features, df, plot_dir + 'marginal/', in_browser=in_browser, column=isin,
+                 title=title)
     ks_calculate(df['model'], df['actual'], plot=True, title=title, plot_dir=plot_dir + 'ks_decile/',
                  out_file='all_ks', in_browser=in_browser)
     decile_plot(df['model'], df['actual'], title=title, plot_dir=plot_dir + 'ks_decile/',
                 out_file='all_decile', in_browser=in_browser)
-    if ilist is not None:
-        for j, i in enumerate(ilist):
-            ks_calculate(df.loc[i]['model'].copy(), df.loc[i]['actual'].copy(), plot=True, title=title,
-                         plot_dir=plot_dir + 'ks_decile/', out_file=inames[j] + '_ks', in_browser=in_browser)
-            decile_plot(df['model'], df['actual'], title=title, plot_dir=plot_dir + 'ks_decile/',
-                        out_file=inames[j] + '_decile', in_browser=in_browser)
+    out_dict = dict()
+    out_dict['all'] = importance
+    if slice_dict is not None:
+        for k in slice_dict.keys():
+            i = slice_dict[k]
+            if incl_ks:
+                ks_calculate(df.loc[i]['model'], df.loc[i]['actual'], plot=True,
+                             title=title + ' ' + k, plot_dir=plot_dir + 'ks_decile/',
+                             out_file=k + '_ks', in_browser=in_browser)
+            decile_plot(df.loc[i]['model'], df.loc[i]['actual'], title=title + ' ' + k, plot_dir=plot_dir + 'ks_decile/',
+                        out_file=k + '_decile', in_browser=in_browser)
+            out_dir = plot_dir + 'marginal/' + k + '/'
+            os.makedirs(out_dir, exist_ok=True)
+            importance = tfu.marginal(mod, features, features, df, out_dir, in_browser=in_browser, column=isin,
+                         title=title)
+            out_dict[k] = importance
+    return out_dict
