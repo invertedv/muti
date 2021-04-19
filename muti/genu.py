@@ -598,7 +598,7 @@ def fit_eval(mod, df, yh, target_var, features, plot_dir, title, isin=None,
     :type slice_dict: dict
     :param incl_ks: if True, generate KS plot, too
     :type incl_ks: bool
-    :return: dictionary with the same keys as slice_dict (+ 'all') of importance values
+    :return: dictionary with the same keys as slice_dict (+ 'overall') of importance values
     :rtype dict
     """
     if plot_dir[-1] != '/':
@@ -622,14 +622,14 @@ def fit_eval(mod, df, yh, target_var, features, plot_dir, title, isin=None,
     targs = dict(model_output='model', target='actual')
     fit_by_feature(feats, targs, df, plot_dir + 'effects/', in_browser=in_browser,
                    boot_samples=100, extra_title=title)
-    importance = tfu.marginal(mod, features, features, df, plot_dir + 'marginal/', in_browser=in_browser, column=isin,
+    importance = tfu.marginal(mod, features, features, df, plot_dir + 'marginal/overall', in_browser=in_browser, column=isin,
                  title=title)
     ks_calculate(df['model'], df['actual'], plot=True, title=title, plot_dir=plot_dir + 'ks_decile/',
                  out_file='all_ks', in_browser=in_browser)
     decile_plot(df['model'], df['actual'], title=title, plot_dir=plot_dir + 'ks_decile/',
                 out_file='all_decile', in_browser=in_browser)
     out_dict = dict()
-    out_dict['all'] = importance
+    out_dict['overall'] = importance
     if slice_dict is not None:
         for k in slice_dict.keys():
             i = slice_dict[k]
