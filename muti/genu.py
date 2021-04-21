@@ -395,7 +395,8 @@ def decile_plot(score_variable, binary_variable, xlab='Score', ylab='Actual', ti
 
 
 def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles=10,
-                   boot_samples=1000, boot_coverage=0.95, extra_title=None, in_browser=False):
+                   boot_samples=1000, boot_coverage=0.95, extra_title=None, in_browser=False,
+                   plot_box=False):
     """
     Generates two plots to assess model fit.
 
@@ -420,6 +421,8 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
     :type in_browser: bool
     :param boot_coverage: coverage of bootstrap CI
     :type boot_coverage: float
+    :param plot_box: if True, does boxplots
+    :type plot_box: bool
 
     """
     
@@ -449,9 +452,7 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
         return list(ci_boot['means'])
     
     pio.renderers.default = 'browser'
-    
     sample_df = sample_df_in.copy()
-    
     y = targets['target']
     yh = targets['model_output']
     
@@ -472,18 +473,19 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
                                         labels=[feature + ' ' + str(quantiles[j + 1]) for j in
                                                 range(quantiles.shape[0] - 1)], right=True)
         
-        fig = [go.Box(x=sample_df[feature], y=sample_df[yh], name='model')]
-        fig += [go.Box(x=sample_df[feature], y=sample_df[y], name='actual')]
-        co = sample_df.groupby(feature)[yh].mean().sort_values(ascending=False).index
-        
-        layout = go.Layout(title='Model and Actual values by ' + feature,
-                           xaxis=dict(title=feature, categoryorder='array', categoryarray=co),
-                           yaxis=dict(title=y))
-        
-        figx = go.Figure(fig, layout=layout)
-        figx.update_layout(boxmode='group')
-        if in_browser:
-            figx.show()
+        if plot_box:
+            fig = [go.Box(x=sample_df[feature], y=sample_df[yh], name='model')]
+            fig += [go.Box(x=sample_df[feature], y=sample_df[y], name='actual')]
+            #co = sample_df.groupby(feature)[yh].mean().sort_values(ascending=False).index
+            
+            layout = go.Layout(title='Model and Actual values by ' + feature,
+                               xaxis=dict(title=feature, categoryorder='array', categoryarray=co),
+                               yaxis=dict(title=y))
+            
+            figx = go.Figure(fig, layout=layout)
+            figx.update_layout(boxmode='group')
+            if in_browser:
+                figx.show()
         
         co = sample_df.groupby(feature)[[y, yh]].mean()
         fig1 = [go.Scatter(x=co[yh], y=co[y], mode='markers', name='',
@@ -516,14 +518,15 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
         if plot_dir is not None:
             if plot_dir[-1] != '/':
                 plot_dir += '/'
-            if co.shape[0] > 10:
-                figx.update_layout(width=1800, height=600)
-                
-            fname = plot_dir + 'png/BoxPlotModelFit' + feature + '.png'
-            figx.write_image(fname)
-
-            fname = plot_dir + 'html/BoxPlotModelFit' + feature + '.html'
-            figx.write_html(fname)
+            
+            if plot_box:
+                if co.shape[0] > 10:
+                    figx.update_layout(width=1800, height=600)
+                fname = plot_dir + 'png/BoxPlotModelFit' + feature + '.png'
+                figx.write_image(fname)
+    
+                fname = plot_dir + 'html/BoxPlotModelFit' + feature + '.html'
+                figx.write_html(fname)
 
             fname = plot_dir + 'png/CrossMeanModelFit' + feature + '.png'
             figx1.write_image(fname)
@@ -567,7 +570,7 @@ def make_dir_tree(base_path, dirs, rename_to=None):
         os.makedirs(base_path + p)
 
 
-def fit_eval(mod, df, yh, target_var, features, plot_dir, title, isin=None,
+def fit_eval(mod, df, yh, target_var, features_target, features, plot_dir, title, isin=None,
              in_browser=False, slice_dict=None, incl_ks = True):
     """
     driver function for fit_by_feature and ks_calculate & decile_plot. The function:
@@ -584,6 +587,8 @@ def fit_eval(mod, df, yh, target_var, features, plot_dir, title, isin=None,
     :type yh: tf.keras.Model.Predict output
     :param target_var: the target variable of the model. Must be a column of df.
     :type title: str
+    :param features_target: features to generate plots for (same structure as features)
+    :type features_target: dict
     :param features: dict returned by build_feature_dict
     :type features: dict
     :param plot_dir: directory to write graphs to. It will be created, plus subdirectories png & html
@@ -609,7 +614,7 @@ def fit_eval(mod, df, yh, target_var, features, plot_dir, title, isin=None,
     os.makedirs(plot_dir + 'effects/html', exist_ok=True)
     os.makedirs(plot_dir + 'ks_decile/png', exist_ok=True)
     os.makedirs(plot_dir + 'ks_decile/html', exist_ok=True)
-    feats = features.copy()
+    feats = features_target.copy()
     feats['model_output'] = ['cts']
     if isin is not None:
         df['model'] = tfu.get_pred(yh, isin)
@@ -620,16 +625,16 @@ def fit_eval(mod, df, yh, target_var, features, plot_dir, title, isin=None,
 
     df['model_output'] = df['model']
     targs = dict(model_output='model', target='actual')
-    fit_by_feature(feats, targs, df, plot_dir + 'effects/', in_browser=in_browser,
-                   boot_samples=100, extra_title=title)
-    importance = tfu.marginal(mod, features, features, df, plot_dir + 'marginal/overall/', in_browser=in_browser, column=isin,
-                 title=title)
-    ks_calculate(df['model'], df['actual'], plot=True, title=title, plot_dir=plot_dir + 'ks_decile/',
-                 out_file='all_ks', in_browser=in_browser)
     decile_plot(df['model'], df['actual'], title=title, plot_dir=plot_dir + 'ks_decile/',
                 out_file='all_decile', in_browser=in_browser)
+    ks_calculate(df['model'], df['actual'], plot=True, title=title, plot_dir=plot_dir + 'ks_decile/',
+                 out_file='all_ks', in_browser=in_browser)
+#    fit_by_feature(feats, targs, df, plot_dir + 'effects/overall/', in_browser=in_browser,
+#                   boot_samples=100, extra_title=title)
+#    importance = tfu.marginal(mod, features, features, df, plot_dir + 'marginal/overall/', in_browser=in_browser, column=isin,
+#                 title=title)
     out_dict = dict()
-    out_dict['overall'] = importance
+#    out_dict['overall'] = importance
     if slice_dict is not None:
         for k in slice_dict.keys():
             i = slice_dict[k]
@@ -639,10 +644,15 @@ def fit_eval(mod, df, yh, target_var, features, plot_dir, title, isin=None,
                              out_file=k + '_ks', in_browser=in_browser)
             decile_plot(df.loc[i]['model'], df.loc[i]['actual'], title=title + ' ' + k, plot_dir=plot_dir + 'ks_decile/',
                         out_file=k + '_decile', in_browser=in_browser)
+            out_dir = plot_dir + 'effects/' + k + '/'
+            os.makedirs(out_dir + 'png', exist_ok=True)
+            os.makedirs(out_dir + 'html', exist_ok=True)
+            fit_by_feature(feats, targs, df.loc[i], plot_dir + 'effects/' + k + '/', in_browser=in_browser,
+                           boot_samples=100, extra_title=title)
             out_dir = plot_dir + 'marginal/' + k + '/'
             os.makedirs(out_dir + 'png', exist_ok=True)
             os.makedirs(out_dir + 'html', exist_ok=True)
-            importance = tfu.marginal(mod, features, features, df, out_dir, in_browser=in_browser, column=isin,
+            importance = tfu.marginal(mod, features, features, df.loc[i], out_dir, in_browser=in_browser, column=isin,
                          title=title)
             out_dict[k] = importance
     return out_dict

@@ -56,6 +56,7 @@ def plot_history(history, groups=['loss'], metric='loss', first_epoch=0, title=N
     :return:
     """
     pio.renderers.default = 'browser'
+    os.makedirs(plot_dir, exist_ok=True)
     fig = []
     for g in groups:
         x = np.arange(first_epoch, len(history.history[g]) - first_epoch)
@@ -70,10 +71,10 @@ def plot_history(history, groups=['loss'], metric='loss', first_epoch=0, title=N
     if in_browser:
         figx.show()
     if plot_dir is not None:
-        plot_file = plot_dir + 'png/history.png'
+        plot_file = plot_dir + metric + '.png'
         figx.write_image(plot_file)
 
-        plot_file = plot_dir + 'html/history.html'
+        plot_file = plot_dir + metric + '.html'
         figx.write_html(plot_file)
 
 
@@ -111,7 +112,7 @@ def build_column(feature_name, feature_params, out_path=None):
             f = open(out_path + feature_name + '.txt', 'w')
             f.write('label\tId\n')
             for j, s in enumerate(vocab):
-                f.write(s + '\t' + str(j) + '\n')
+                f.write(str(s) + '\t' + str(j) + '\n')
             f.close()
         dv = [j for j in range(len(vocab)) if vocab[j] == feature_params[2]][0]
         col_cat = tf.feature_column.categorical_column_with_vocabulary_list(feature_name, vocab,
@@ -477,3 +478,5 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     imp_df = pd.DataFrame(importance, index=['max median range']).transpose()
     imp_df = imp_df.sort_values('max median range', ascending=False)
     return imp_df
+
+
