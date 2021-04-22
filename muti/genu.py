@@ -610,8 +610,8 @@ def fit_eval(mod, df, yh, target_var, features_target, features, plot_dir, title
         plot_dir += '/'
     os.makedirs(plot_dir + 'marginal/overall/png', exist_ok=True)
     os.makedirs(plot_dir + 'marginal/overall/html', exist_ok=True)
-    os.makedirs(plot_dir + 'effects/png', exist_ok=True)
-    os.makedirs(plot_dir + 'effects/html', exist_ok=True)
+    os.makedirs(plot_dir + 'effects/overall/png', exist_ok=True)
+    os.makedirs(plot_dir + 'effects/overall/html', exist_ok=True)
     os.makedirs(plot_dir + 'ks_decile/png', exist_ok=True)
     os.makedirs(plot_dir + 'ks_decile/html', exist_ok=True)
     feats = features_target.copy()
@@ -629,12 +629,12 @@ def fit_eval(mod, df, yh, target_var, features_target, features, plot_dir, title
                 out_file='all_decile', in_browser=in_browser)
     ks_calculate(df['model'], df['actual'], plot=True, title=title, plot_dir=plot_dir + 'ks_decile/',
                  out_file='all_ks', in_browser=in_browser)
-#    fit_by_feature(feats, targs, df, plot_dir + 'effects/overall/', in_browser=in_browser,
-#                   boot_samples=100, extra_title=title)
-#    importance = tfu.marginal(mod, features, features, df, plot_dir + 'marginal/overall/', in_browser=in_browser, column=isin,
-#                 title=title)
+    fit_by_feature(feats, targs, df, plot_dir + 'effects/overall/', in_browser=in_browser,
+                   boot_samples=100, extra_title=title)
+    importance = tfu.marginal(mod, features, features, df, plot_dir + 'marginal/overall/', in_browser=in_browser, column=isin,
+                 title=title)
     out_dict = dict()
-#    out_dict['overall'] = importance
+    out_dict['overall'] = importance
     if slice_dict is not None:
         for k in slice_dict.keys():
             i = slice_dict[k]
