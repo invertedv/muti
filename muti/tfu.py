@@ -312,6 +312,13 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
             - The model output is found for all these
             - Boxplots are formed.  These plots have a common y-axis with limits from the .01 to .99 quantile
               of the model output on sample_df
+        - A seventh graph show the distribution of the feature across the six groups.
+            - For continuous features, these are box plots of the feature distribution *within* each model output group.
+            - For discrete features, these are histograms of each feature level *across* the model output groups.
+              These ARE NOT the feature distribution within each model group -- which is influenced the the
+              prevelance of feature levels (e.g. there are a lot of loans in CA). This latter info can be gleaned
+              from the first 6 plots since the feature levels are in descending order of prevelance within the
+              model group.
 
     Features:
         - Since the x-values are sampled from sample_df, any correlation within the features not plotted on the
@@ -350,7 +357,6 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     :return: for each target, the range of the median across the target levels for each model output group
     :rtype dict
     """
- 
     
     if plot_dir is not None:
         if plot_dir[-1] != '/':
@@ -360,9 +366,9 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     sample_df = sample_df_in.copy()
     
     sample_df['target'] = np.full(sample_df.shape[0], 0.0)
-    score_ds = get_tf_dataset(features_dict, 'target', sample_df, sample_df.shape[0], 1)
+    score_ds = tfu.get_tf_dataset(features_dict, 'target', sample_df, sample_df.shape[0], 1)
     
-    sample_df['yh'] = get_pred(model.predict(score_ds), column)  # np.array(model.predict(score_ds)).flatten()
+    sample_df['yh'] = tfu.get_pred(model.predict(score_ds), column)  # np.array(model.predict(score_ds)).flatten()
     rangey = sample_df['yh'].quantile([.01, .99])
     miny = float(rangey.iloc[0])
     maxy = float(rangey.iloc[1])
@@ -373,16 +379,20 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     sample_df['grp'] = pd.cut(sample_df['yh'], quantiles, labels=['grp' + str(j) for j in range(num_grp)], right=True)
     sub_titles = []
     importance = {}
+    cols = ['violet', 'blue', 'green', 'yellow', 'orange', 'red']
     
     for j in range(num_grp):
         sub_title = 'Model Output in {0} to {1}'.format(round(quantiles.iloc[j], 2), round(quantiles.iloc[j + 1], 2))
         sub_title += '<br>'
         sub_title += 'Quantile {0} to {1}'.format(target_qs[j], target_qs[j + 1])
         sub_titles += [sub_title]
+    sub_titles += ['Feature Distribution Over<br>Model Output Groups']
     for target in features_target:
         # the specs list gives some padding between the top of the plots and the overall title
-        fig = make_subplots(rows=1, cols=num_grp, subplot_titles=sub_titles,
-                            specs=[[{'t': 0.05}, {'t': 0.05}, {'t': 0.05}, {'t': 0.05}, {'t': 0.05}, {'t': 0.05}]])
+        fig = make_subplots(rows=1, cols=num_grp + 1, subplot_titles=sub_titles,
+                            specs=[[{'t': 0.05}, {'t': 0.05}, {'t': 0.05},
+                                    {'t': 0.05}, {'t': 0.05}, {'t': 0.05},
+                                    {'t': 0.05}]])
         
         median_ranges = []
         # go across the model output groups
@@ -420,9 +430,9 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
                 
                 # placeholder
                 score_df['target'] = np.full(nobs, 0.0)
-                score_ds = get_tf_dataset(features_dict, 'target', score_df, nobs, 1)
+                score_ds = tfu.get_tf_dataset(features_dict, 'target', score_df, nobs, 1)
                 
-                yh = get_pred(model.predict(score_ds), column)  # np.array(model.predict(score_ds)).flatten()
+                yh = tfu.get_pred(model.predict(score_ds), column)  # np.array(model.predict(score_ds)).flatten()
                 
                 # stack up the model outputs
                 if yhall is None:
@@ -435,16 +445,53 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
             # create grouped boxplots based on the values of the target feature
             if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
                 xv = pd.DataFrame({'x': [str(round(x, 2)) for x in xall], 'yh': yhall})
-                fig.add_trace(go.Box(x=xv['x'], y=xv['yh']), row=1, col=j + 1)
+                fig.add_trace(go.Box(x=xv['x'], y=xv['yh'], marker=dict(color=cols[j])), row=1, col=j + 1)
             else:
                 xv = pd.DataFrame({'x': [str(x) for x in xall], 'yh': yhall})
-                fig.add_trace(go.Box(x=xv['x'], y=xv['yh']), row=1, col=j + 1)
+                fig.add_trace(go.Box(x=xv['x'], y=xv['yh'], marker=dict(color=cols[j])), row=1, col=j + 1)
             # give the figure a title
             fig.update_annotations(sub_title='Group ' + str(j), row=1, col=j + 1)
             fig.update_traces(name='grp ' + str(j), row=1, col=j + 1)
-            #            score_df['yh'] = yh
             medians = xv.groupby('x')['yh'].median()
             median_ranges += [medians.max() - medians.min()]
+        ##
+        if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
+            for j, g in enumerate(['grp' + str(j) for j in range(num_grp)]):
+                i = sample_df['grp'] == g
+                if j == 0:
+                    nm = 'Lowest'
+                elif j == num_grp - 1:
+                    nm = 'Highest'
+                else:
+                    nm = 'G' + str(j)
+                fig.add_trace(go.Box(y=sample_df.loc[i][target], name=nm, marker=dict(color=cols[j]), ),
+                              row=1, col=num_grp + 1)
+        else:
+            cts = sample_df[target].value_counts().sort_values(ascending=False)
+            cat = cts.index
+            if cts.shape[0] > 5:
+                cat = cat[0:5]
+            for c in cat:
+                i = sample_df[target] == c
+                cts = sample_df.loc[i]['grp'].value_counts().sort_index()
+                probs = 100.0 * cts / cts.sum()
+                fig.add_trace(go.Bar(x=probs.index, y=probs, text=c, textposition='outside',
+                                     marker=dict(color=cols)),
+                              row=1, col=num_grp + 1)
+        
+        #            for j, g in enumerate(['grp' + str(j) for j in range(num_grp)]):
+        #                i =sample_df['grp'] == g
+        #                cts = sample_df.loc[i][target].value_counts().sort_values(ascending=False)
+        #                probs = 100.0 * cts / cts.sum()
+        #                if cts.shape[0] > 5:
+        #                    probs = probs.iloc[0:5]
+        #                fig.add_trace(go.Bar(x=probs.index, y=probs, marker=dict(color=cols[j]), name='G' + str(j)),
+        #                              row=1, col=num_grp+1)
+        
+        #                fig.add_trace(go.Histogram(x=sample_df.loc[i][target].sort_values(), name='G' + str(j),
+        #                                           marker = dict(color=cols[j]),
+        #                                           histnorm='probability density'),
+        #                              row=1, col=num_grp+1)
         
         importance[target] = max(median_ranges)
         # overall title
@@ -478,5 +525,3 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     imp_df = pd.DataFrame(importance, index=['max median range']).transpose()
     imp_df = imp_df.sort_values('max median range', ascending=False)
     return imp_df
-
-
