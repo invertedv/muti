@@ -366,9 +366,9 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     sample_df = sample_df_in.copy()
     
     sample_df['target'] = np.full(sample_df.shape[0], 0.0)
-    score_ds = tfu.get_tf_dataset(features_dict, 'target', sample_df, sample_df.shape[0], 1)
+    score_ds = get_tf_dataset(features_dict, 'target', sample_df, sample_df.shape[0], 1)
     
-    sample_df['yh'] = tfu.get_pred(model.predict(score_ds), column)  # np.array(model.predict(score_ds)).flatten()
+    sample_df['yh'] = get_pred(model.predict(score_ds), column)  # np.array(model.predict(score_ds)).flatten()
     rangey = sample_df['yh'].quantile([.01, .99])
     miny = float(rangey.iloc[0])
     maxy = float(rangey.iloc[1])
@@ -430,9 +430,9 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
                 
                 # placeholder
                 score_df['target'] = np.full(nobs, 0.0)
-                score_ds = tfu.get_tf_dataset(features_dict, 'target', score_df, nobs, 1)
+                score_ds = get_tf_dataset(features_dict, 'target', score_df, nobs, 1)
                 
-                yh = tfu.get_pred(model.predict(score_ds), column)  # np.array(model.predict(score_ds)).flatten()
+                yh = get_pred(model.predict(score_ds), column)  # np.array(model.predict(score_ds)).flatten()
                 
                 # stack up the model outputs
                 if yhall is None:
