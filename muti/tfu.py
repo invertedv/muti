@@ -466,6 +466,10 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
                     nm = 'G' + str(j)
                 fig.add_trace(go.Box(y=sample_df.loc[i][target], name=nm, marker=dict(color=cols[j]), ),
                               row=1, col=num_grp + 1)
+                mm = sample_df[target].quantile([.01,.99])
+                miny = float(mm.iloc[0])
+                maxy = float(mm.iloc[1])
+                fig['layout']['yaxis' + str(num_grp + 1)]['range'] = [miny, maxy]
         else:
             cts = sample_df[target].value_counts().sort_values(ascending=False)
             cat = cts.index
@@ -478,7 +482,7 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
                 fig.add_trace(go.Bar(x=probs.index, y=probs, text=c, textposition='outside',
                                      marker=dict(color=cols)),
                               row=1, col=num_grp + 1)
-        
+
         #            for j, g in enumerate(['grp' + str(j) for j in range(num_grp)]):
         #                i =sample_df['grp'] == g
         #                cts = sample_df.loc[i][target].value_counts().sort_values(ascending=False)
