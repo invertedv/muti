@@ -303,6 +303,7 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     - The model output is found on sample_df:
         - Six groups based on the quantiles [0, .1,. .25, .5, .75, .9, 1] are found from sample_df.
     - for each feature in features:
+        **Row 1**
         - Six graphs are contructed: one for each group defined above.
             - The graph covers
             -  A random sample of size num_sample is taken from this group
@@ -312,13 +313,15 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
             - The model output is found for all these
             - Boxplots are formed.  These plots have a common y-axis with limits from the .01 to .99 quantile
               of the model output on sample_df
-        - A seventh graph show the distribution of the feature across the six groups.
+        **Row 2**
+        - Six graphs that show the distribution of the feature within each model output group.
+        **Right-hand graph**
+        - The distribution of the feature
             - For continuous features, these are box plots of the feature distribution *within* each model output group.
-            - For discrete features, these are histograms of each feature level *across* the model output groups.
-              These ARE NOT the feature distribution within each model group -- which is influenced the the
-              prevelance of feature levels (e.g. there are a lot of loans in CA). This latter info can be gleaned
-              from the first 6 plots since the feature levels are in descending order of prevelance within the
-              model group.
+              These are the boxplot equivalent of the row 2 histograms
+            - For discrete features, these are bar plots of each feature level *across* the model output groups.
+              These ARE NOT the feature distribution within each model group (row 2) -- which is influenced the the
+              prevelance of feature levels (e.g. there are a lot of loans in CA).
 
     Features:
         - Since the x-values are sampled from sample_df, any correlation within the features not plotted on the
@@ -368,6 +371,7 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     sample_df['target'] = np.full(sample_df.shape[0], 0.0)
     score_ds = get_tf_dataset(features_dict, 'target', sample_df, sample_df.shape[0], 1)
     
+    # get and process the model output
     sample_df['yh'] = get_pred(model.predict(score_ds), column)  # np.array(model.predict(score_ds)).flatten()
     rangey = sample_df['yh'].quantile([.01, .99])
     miny = float(rangey.iloc[0])
@@ -376,9 +380,12 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     quantiles = sample_df['yh'].quantile(target_qs)
     quantiles.iloc[0] -= 1.0
     num_grp = quantiles.shape[0] - 1
+    # now we have the six groups that we will base the graphs on
     sample_df['grp'] = pd.cut(sample_df['yh'], quantiles, labels=['grp' + str(j) for j in range(num_grp)], right=True)
+    
     sub_titles = []
     importance = {}
+    # reverse(ROYGBIV)
     cols = ['violet', 'blue', 'green', 'yellow', 'orange', 'red']
     
     for j in range(num_grp):
@@ -386,26 +393,40 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
         sub_title += '<br>'
         sub_title += 'Quantile {0} to {1}'.format(target_qs[j], target_qs[j + 1])
         sub_titles += [sub_title]
-    sub_titles += ['Feature Distribution Over<br>Model Output Groups']
+    sub_titles += ['Place Holder']
+    
+    # go through the features
     for target in features_target:
+        if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
+            sub_titles[6] = 'Box Plots'
+        else:
+            sub_titles[6] = 'Across Group<br>Distribution'
         # the specs list gives some padding between the top of the plots and the overall title
-        fig = make_subplots(rows=1, cols=num_grp + 1, subplot_titles=sub_titles,
-                            specs=[[{'t': 0.05}, {'t': 0.05}, {'t': 0.05},
-                                    {'t': 0.05}, {'t': 0.05}, {'t': 0.05},
-                                    {'t': 0.05}]])
+        fig = make_subplots(rows=2, cols=num_grp + 1, subplot_titles=sub_titles,
+                            row_heights=[1, .5],
+                            specs=[[{'t': 0.07, 'b': -.1}, {'t': 0.07, 'b': -.10}, {'t': 0.07, 'b': -.10},
+                                    {'t': 0.07, 'b': -.10}, {'t': 0.07, 'b': -.10}, {'t': 0.07, 'b': -.10},
+                                    {'t': 0.35, 'b': -0.35}],
+                                   [{'t': -0.07}, {'t': -.07}, {'t': -.07}, {'t': -0.07}, {'t': -.07},
+                                    {'t': -.07}, None]])
         
         median_ranges = []
+        all_cats = []
+        maxy2 = 0.0  # max of the bar charts (row 2) for cat features
+        
         # go across the model output groups
         for j in range(num_grp):
-            yhall = None
-            i = sample_df['grp'] == 'grp' + str(j)
+            yhall = None  # this will be all the model outputs from the sample
             
+            i = sample_df['grp'] == 'grp' + str(j)
             if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
+                # Bucketize discrete cts features, within this model output group (MOG)
                 qs = sample_df.loc[i, target].quantile([.1, .2, .3, .4, .5, .6, .7, .8, .9]).unique()
                 nobs = qs.shape[0]
                 xval = np.array(qs).flatten()
                 xlab = 'Values at deciles within each model-value group'
             else:
+                # Find the levels of the feature. Keep no more than the most frequent five.
                 cats = list(sample_df.loc[i][target].value_counts().sort_values(ascending=False).index)
                 if cat_top is None or len(cats) < cat_top:
                     nobs = len(cats)
@@ -413,6 +434,7 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
                 else:
                     nobs = cat_top
                     xval = cats[0:nobs]
+                all_cats += xval
                 xlab = 'Top values by frequency within each model-value group'
             # score_df is just the values of the feature we going to score
             score_df = pd.DataFrame({target: xval})
@@ -422,16 +444,18 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
             
             # go across the number of samples to draw
             for k in range(num_sample):
-                # load up the rest of the features moving through our random sample
+                # generate a DataFrame that has a range of values for the target feature and
+                # the rest of the features are from one of our sample
+                # Now, load up the rest of the features moving through our random sample
                 for feature in features_dict.keys():
                     if feature != target:
                         xval = np.full(nobs, vals.iloc[k][feature])
                         score_df[feature] = xval
-                
                 # placeholder
                 score_df['target'] = np.full(nobs, 0.0)
                 score_ds = get_tf_dataset(features_dict, 'target', score_df, nobs, 1)
                 
+                # get model output
                 yh = get_pred(model.predict(score_ds), column)  # np.array(model.predict(score_ds)).flatten()
                 
                 # stack up the model outputs
@@ -449,11 +473,43 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
             else:
                 xv = pd.DataFrame({'x': [str(x) for x in xall], 'yh': yhall})
                 fig.add_trace(go.Box(x=xv['x'], y=xv['yh'], marker=dict(color=cols[j])), row=1, col=j + 1)
-            # give the figure a title
-            fig.update_annotations(sub_title='Group ' + str(j), row=1, col=j + 1)
-            fig.update_traces(name='grp ' + str(j), row=1, col=j + 1)
+            #            # give the figure a title
+            #            fig.update_annotations(sub_title='Group ' + str(j), row=1, col=j + 1)
+            #            fig.update_traces(name='grp ' + str(j), row=1, col=j + 1)
+            # for importance measure
             medians = xv.groupby('x')['yh'].median()
             median_ranges += [medians.max() - medians.min()]
+        # generate row 2 plots
+        if features_dict[target][0] != 'cts' and features_dict[target][0] != 'spl':
+            for j in range(num_grp):
+                i = sample_df['grp'] == 'grp' + str(j)
+                i1 = i & (sample_df.loc[i][target].isin(all_cats))
+                cts = sample_df.loc[i1][target].value_counts().sort_index()
+                probs = 100.0 * cts / i.sum()
+                if probs.max() > maxy2:
+                    maxy2 = probs.max()
+                fig.add_trace(go.Bar(x=probs.index, y=probs, marker=dict(color=cols[j])), row=2, col=j + 1)
+            for jj in range(num_grp):
+                fig['layout']['yaxis' + str(num_grp + 2 + jj)]['range'] = [0.0, maxy2]
+        else:
+            maxyr2 = 0.0
+            for j in range(num_grp):
+                i = sample_df['grp'] == 'grp' + str(j)
+                h = go.Histogram(x=sample_df.loc[i][target])
+                fig.add_trace(go.Histogram(x=sample_df.loc[i][target], marker=dict(color=cols[j]),
+                                           histnorm='probability density'),
+                              row=2, col=j + 1)
+                # this appears to be the only way to get the bin heights of the histogram -- the histogrm is built
+                # by javascript. All that's stored in the
+                ym = fig.full_figure_for_development(warn=False)['layout']['yaxis' + str(num_grp + 2 + j)]['range'][1]
+                if ym > maxyr2:
+                    maxyr2 = ym
+            xrng = sample_df[target].quantile([.01, .99])
+            xmin2 = float(xrng.iloc[0])
+            xmax2 = float(xrng.iloc[1])
+            for j in range(num_grp):
+                fig['layout']['yaxis' + str(num_grp + 2 + j)]['range'] = [0, maxyr2]
+                fig['layout']['xaxis' + str(num_grp + 2 + j)]['range'] = [xmin2, xmax2]
         ##
         if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
             for j, g in enumerate(['grp' + str(j) for j in range(num_grp)]):
@@ -466,10 +522,10 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
                     nm = 'G' + str(j)
                 fig.add_trace(go.Box(y=sample_df.loc[i][target], name=nm, marker=dict(color=cols[j]), ),
                               row=1, col=num_grp + 1)
-                mm = sample_df[target].quantile([.01,.99])
-                minys = float(mm.iloc[0])
-                maxys = float(mm.iloc[1])
-                fig['layout']['yaxis' + str(num_grp + 1)]['range'] = [minys, maxys]
+            mm = sample_df[target].quantile([.01, .99])
+            minys = float(mm.iloc[0])
+            maxys = float(mm.iloc[1])
+            fig['layout']['yaxis' + str(num_grp + 1)]['range'] = [minys, maxys]
         else:
             cts = sample_df[target].value_counts().sort_values(ascending=False)
             cat = cts.index
@@ -482,20 +538,6 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
                 fig.add_trace(go.Bar(x=probs.index, y=probs, text=c, textposition='outside',
                                      marker=dict(color=cols)),
                               row=1, col=num_grp + 1)
-
-        #            for j, g in enumerate(['grp' + str(j) for j in range(num_grp)]):
-        #                i =sample_df['grp'] == g
-        #                cts = sample_df.loc[i][target].value_counts().sort_values(ascending=False)
-        #                probs = 100.0 * cts / cts.sum()
-        #                if cts.shape[0] > 5:
-        #                    probs = probs.iloc[0:5]
-        #                fig.add_trace(go.Bar(x=probs.index, y=probs, marker=dict(color=cols[j]), name='G' + str(j)),
-        #                              row=1, col=num_grp+1)
-        
-        #                fig.add_trace(go.Histogram(x=sample_df.loc[i][target].sort_values(), name='G' + str(j),
-        #                                           marker = dict(color=cols[j]),
-        #                                           histnorm='probability density'),
-        #                              row=1, col=num_grp+1)
         
         importance[target] = max(median_ranges)
         # overall title
@@ -511,10 +553,13 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
                            yanchor='top', yref='paper', yshift=-40, showarrow=False)
         fig.add_annotation(text=xlab, font=dict(size=10), x=0.5, xanchor='center', xref='paper', y=0,
                            yanchor='top', yref='paper', yshift=-60, showarrow=False)
+        fig.add_annotation(text='Within Group Distribution', font=dict(size=20), x=0.45, xanchor='center', xref='paper',
+                           y=.4, yanchor='top', yref='paper', yshift=-40, showarrow=False)
         for jj in range(num_grp):
             fig['layout']['yaxis' + str(jj + 1)]['range'] = [miny, maxy]
         for jj in range(1, num_grp):
             fig['layout']['yaxis' + str(jj + 1)]['showticklabels'] = False
+        fig['layout']['yaxis' + str(num_grp + 2 + jj)]['showticklabels'] = False
         if in_browser:
             fig.show()
         if plot_dir is not None:
@@ -522,7 +567,7 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
             fig.write_html(fname)
             
             # needed for png to look decent
-            fig.update_layout(width=1800, height=600)
+            fig.update_layout(width=1800, height=1150)
             fname = plot_dir + 'png/' + target + '.png'
             fig.write_image(fname)
     
