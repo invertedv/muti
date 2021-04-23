@@ -467,9 +467,9 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
                 fig.add_trace(go.Box(y=sample_df.loc[i][target], name=nm, marker=dict(color=cols[j]), ),
                               row=1, col=num_grp + 1)
                 mm = sample_df[target].quantile([.01,.99])
-                miny = float(mm.iloc[0])
-                maxy = float(mm.iloc[1])
-                fig['layout']['yaxis' + str(num_grp + 1)]['range'] = [miny, maxy]
+                minys = float(mm.iloc[0])
+                maxys = float(mm.iloc[1])
+                fig['layout']['yaxis' + str(num_grp + 1)]['range'] = [minys, maxys]
         else:
             cts = sample_df[target].value_counts().sort_values(ascending=False)
             cat = cts.index
