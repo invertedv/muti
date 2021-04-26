@@ -385,9 +385,9 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     
     sub_titles = []
     importance = {}
-    # reverse(ROYGBIV)
-    cols = ['violet', 'blue', 'green', 'yellow', 'orange', 'red']
-    
+    # reverse(ROYGBIV) but not super bright. See https://www.color-hex.com/
+    cols = ['#7d459c', '#2871a7', '#056916', '#dbac1a', '#dd7419', '#bd0d0d']
+
     for j in range(num_grp):
         sub_title = 'Model Output in {0} to {1}'.format(round(quantiles.iloc[j], 2), round(quantiles.iloc[j + 1], 2))
         sub_title += '<br>'
