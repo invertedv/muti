@@ -507,6 +507,8 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
             xrng = sample_df[target].quantile([.01, .99])
             xmin2 = float(xrng.iloc[0])
             xmax2 = float(xrng.iloc[1])
+            xmin2 -= 0.01 * (xmax2 - xmin2)
+            xmax2 += 0.01 * (xmax2 - xmin2)
             for j in range(num_grp):
                 fig['layout']['yaxis' + str(num_grp + 2 + j)]['range'] = [0, maxyr2]
                 fig['layout']['xaxis' + str(num_grp + 2 + j)]['range'] = [xmin2, xmax2]
