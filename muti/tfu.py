@@ -578,8 +578,237 @@ def marginal_old(model, features_target, features_dict, sample_df_in, plot_dir=N
     return imp_df
 
 
+def _marginal_cts(model, column, features_dict, sample_df, target, num_grp, num_sample, title, sub_titles, cols):
+    """
+
+    :param model: model
+    :param column: column of model output
+    :param features_dict: features in the model
+    :param sample_df: DataFrame operating on
+    :param target: target feature
+    :param num_grp: # of groups model output is sliced into
+    :param num_sample: # of obs to take from sample_df to build graph
+    :param title: title for graph
+    :param sub_titles: titles for subplots
+    :param cols: colors
+    :return: plotly_fig and importance metric
+    """
+    
+    sub_titles[6] = 'Box Plots'
+    fig = make_subplots(rows=2, cols=num_grp + 1, subplot_titles=sub_titles,
+                        row_heights=[1, .5],
+                        specs=[[{'t': 0.07, 'b': -.1}, {'t': 0.07, 'b': -.10}, {'t': 0.07, 'b': -.10},
+                                {'t': 0.07, 'b': -.10}, {'t': 0.07, 'b': -.10}, {'t': 0.07, 'b': -.10},
+                                {'t': 0.35, 'b': -0.35}],
+                               [{'t': -0.07}, {'t': -.07}, {'t': -.07}, {'t': -0.07}, {'t': -.07},
+                                {'t': -.07}, None]])
+    
+    lows = sample_df.groupby('grp')[target].quantile(.01)
+    highs = sample_df.groupby('grp')[target].quantile(.99)
+    both = pd.merge(left=lows, right=highs, left_index=True, right_index=True)
+    both.rename(columns={target + '_x': 'low', target + '_y': 'high'}, inplace=True)
+    to_join = pd.concat([both] * 11).sort_index()
+    xval = np.arange(11) / 10
+    xval = np.concatenate([xval] * num_grp)
+    to_join['steps'] = xval
+    to_join[target] = to_join['low'] + (to_join['high'] - to_join['low']) * to_join['steps']
+    
+    samps = sample_df.groupby('grp').sample(num_sample)
+    samps['samp_num'] = np.arange(samps.shape[0])
+    samps.pop(target)
+    score_df = pd.merge(samps, to_join[target], on='grp')
+    nobs = score_df.shape[0]
+    score_df['target'] = np.full(nobs, 0.0)  # noop value
+    score_ds = get_tf_dataset(features_dict, 'target', score_df, nobs, 1)
+    
+    # get model output
+    score_df['yh'] = get_pred(model.predict(score_ds), column)
+    
+    xplot_name = target + '_str'
+    
+    score_df[xplot_name] = np.round(score_df[target], 2).astype(str)
+    
+    for j in range(num_grp):
+        i = score_df['grp'] == 'grp' + str(j)
+        fig.add_trace(go.Box(x=score_df.loc[i][xplot_name], y=score_df.loc[i]['yh'], marker=dict(color=cols[j])),
+                      row=1, col=j + 1)
+    
+    maxyr2 = 0.0
+    for j in range(num_grp):
+        i = sample_df['grp'] == 'grp' + str(j)
+        fig.add_trace(go.Histogram(x=sample_df.loc[i][target], marker=dict(color=cols[j]),
+                                   histnorm='probability density'),
+                      row=2, col=j + 1)
+        # this appears to be the only way to get the bin heights of the histogram -- the histogrm is built
+        # by javascript. All that's stored in the
+        ym = fig.full_figure_for_development(warn=False)['layout']['yaxis' + str(num_grp + 2 + j)]['range'][1]
+        if ym > maxyr2:
+            maxyr2 = ym
+    xlab = '(Values between 1%ile-99%ile within group)'
+    xrng = sample_df[target].quantile([0.01, 0.99])
+    xmin2 = float(xrng.iloc[0])
+    xmax2 = float(xrng.iloc[1])
+    xmin2 -= 0.01 * (xmax2 - xmin2)
+    xmax2 += 0.01 * (xmax2 - xmin2)
+    for j in range(num_grp):
+        fig['layout']['yaxis' + str(num_grp + 2 + j)]['range'] = [0, maxyr2]
+        fig['layout']['xaxis' + str(num_grp + 2 + j)]['range'] = [xmin2, xmax2]
+    
+    for j, g in enumerate(['grp' + str(j) for j in range(num_grp)]):
+        i = sample_df['grp'] == g
+        if j == 0:
+            nm = 'Lowest'
+        elif j == num_grp - 1:
+            nm = 'Highest'
+        else:
+            nm = 'G' + str(j)
+        fig.add_trace(go.Box(y=sample_df.loc[i][target], name=nm, marker=dict(color=cols[j]), ),
+                      row=1, col=num_grp + 1)
+    mm = sample_df[target].quantile([0.01, 0.99])
+    minys = float(mm.iloc[0])
+    maxys = float(mm.iloc[1])
+    fig['layout']['yaxis' + str(num_grp + 1)]['range'] = [minys, maxys]
+    
+    titl = ''
+    if title is not None:
+        titl = title + '<br>' + titl
+    titl += 'Marginal Response for ' + target
+    fig.update_layout(
+        title=dict(text=titl, font=dict(size=24), xanchor='center', xref='paper',
+                   x=0.5), showlegend=False)
+    # add label at bottom of graphs
+    fig.add_annotation(text=target, font=dict(size=16), x=0.5, xanchor='center', xref='paper', y=0,
+                       yanchor='top', yref='paper', yshift=-40, showarrow=False)
+    fig.add_annotation(text=xlab, font=dict(size=10), x=0.5, xanchor='center', xref='paper', y=0,
+                       yanchor='top', yref='paper', yshift=-60, showarrow=False)
+    fig.add_annotation(text='Within Group Distribution', font=dict(size=20), x=0.45, xanchor='center', xref='paper',
+                       y=.4, yanchor='top', yref='paper', yshift=-40, showarrow=False)
+    maxy = score_df['yh'].max()
+    miny = score_df['yh'].min()
+    for jj in range(num_grp):
+        fig['layout']['yaxis' + str(jj + 1)]['range'] = [miny, maxy]
+    for jj in range(1, num_grp):
+        fig['layout']['yaxis' + str(jj + 1)]['showticklabels'] = False
+    fig['layout']['yaxis' + str(num_grp + 2 + jj)]['showticklabels'] = False
+    
+    meds = score_df.groupby(['grp', xplot_name], observed=True)['yh'].median()
+    medr = meds.groupby('grp').max() - meds.groupby('grp').min()
+    imp_within = medr.max()
+    
+    return fig, imp_within
+
+
+def _marginal_cat(model, column, features_dict, sample_df, target, num_grp, num_sample, title, sub_titles, cols):
+    """
+
+    :param model: model
+    :param column: column of model output
+    :param features_dict: features in the model
+    :param sample_df: DataFrame operating on
+    :param target: target feature
+    :param num_grp: # of groups model output is sliced into
+    :param num_sample: # of obs to take from sample_df to build graph
+    :param title: title for graph
+    :param sub_titles: titles for subplots
+    :param cols: colors
+    :return: plotly_fig and importance metric
+    """
+    sub_titles[6] = 'Across Group<br>Distribution'
+    fig = make_subplots(rows=2, cols=num_grp + 1, subplot_titles=sub_titles,
+                        row_heights=[1, .5],
+                        specs=[[{'t': 0.07, 'b': -.1}, {'t': 0.07, 'b': -.10}, {'t': 0.07, 'b': -.10},
+                                {'t': 0.07, 'b': -.10}, {'t': 0.07, 'b': -.10}, {'t': 0.07, 'b': -.10},
+                                {'t': 0.35, 'b': -0.35}],
+                               [{'t': -0.07}, {'t': -.07}, {'t': -.07}, {'t': -0.07}, {'t': -.07},
+                                {'t': -.07}, None]])
+    
+    vcts = sample_df.groupby('grp')[target].value_counts().rename('cts', inplace=True).reset_index()
+    to_join = vcts.groupby('grp').head(10).reset_index()
+    to_join.set_index('grp', inplace=True)
+    vcts_tot = vcts.groupby(target)['cts'].sum().rename('tots').reset_index()
+    probs = pd.merge(vcts, vcts_tot, on=target)
+    probs['prob'] = probs['cts'] / probs['tots']
+    itop = probs[target].isin(to_join[target].unique())
+    probs = probs.loc[itop]
+    
+    samps = sample_df.groupby('grp').sample(num_sample)
+    samps['samp_num'] = np.arange(samps.shape[0])
+    samps.pop(target)
+    score_df = pd.merge(samps, to_join[target], on='grp')
+    nobs = score_df.shape[0]
+    score_df['target'] = np.full(nobs, 0.0)  # noop value
+    score_ds = get_tf_dataset(features_dict, 'target', score_df, nobs, 1)
+    
+    # get model output
+    score_df['yh'] = get_pred(model.predict(score_ds), column)
+    
+    xplot_name = target + '_str'
+    score_df[xplot_name] = score_df[target].astype(str)
+    for j in range(num_grp):
+        i = score_df['grp'] == 'grp' + str(j)
+        fig.add_trace(go.Box(x=score_df.loc[i][xplot_name], y=score_df.loc[i]['yh'], marker=dict(color=cols[j])),
+                      row=1, col=j + 1)
+    
+    # generate row 2 plots
+    maxp = 0.0
+    for j in range(num_grp):
+        g = 'grp' + str(j)
+        grp_vals = to_join.loc[g][target]
+        i = (probs['grp'] == g) & (probs[target].isin(grp_vals))
+        pi = probs.loc[i].sort_values('cts', ascending=False)
+        p = pi['cts'] / pi['cts'].sum()
+        if p.max() > maxp:
+            maxp = p.max()
+        fig.add_trace(go.Bar(x=pi[target], y=p, marker=dict(color=cols[j]), name='Group ' + str(j)),
+                      row=2, col=j + 1)
+    for jj in range(num_grp):
+        fig['layout']['yaxis' + str(num_grp + 2 + jj)]['range'] = [0.0, maxp]
+    xlab = '(Up to top 10 levels within group)'
+    
+    cats = probs[target].unique()
+    nhead = 3
+    while cats.shape[0] > 6:
+        cats = probs.sort_values(['grp', 'prob'], ascending=[True, False]).groupby('grp').head(nhead)[
+            target].unique()
+        nhead -= 1
+    for cat in cats:
+        i = probs[target] == cat
+        fig.add_trace(go.Bar(x=probs.loc[i]['grp'], y=probs.loc[i]['prob'], text=cat,
+                             textposition='outside', marker=dict(color=cols), name=cat),
+                      row=1, col=num_grp + 1)
+    
+    # overall title
+    titl = ''
+    if title is not None:
+        titl = title + '<br>' + titl
+    titl += 'Marginal Response for ' + target
+    fig.update_layout(
+        title=dict(text=titl, font=dict(size=24), xanchor='center', xref='paper',
+                   x=0.5), showlegend=False)
+    # add label at bottom of graphs
+    fig.add_annotation(text=target, font=dict(size=16), x=0.5, xanchor='center', xref='paper', y=0,
+                       yanchor='top', yref='paper', yshift=-40, showarrow=False)
+    fig.add_annotation(text=xlab, font=dict(size=10), x=0.5, xanchor='center', xref='paper', y=0,
+                       yanchor='top', yref='paper', yshift=-60, showarrow=False)
+    fig.add_annotation(text='Within Group Distribution', font=dict(size=20), x=0.45, xanchor='center', xref='paper',
+                       y=.4, yanchor='top', yref='paper', yshift=-40, showarrow=False)
+    maxy = score_df['yh'].max()
+    miny = score_df['yh'].min()
+    for jj in range(num_grp):
+        fig['layout']['yaxis' + str(jj + 1)]['range'] = [miny, maxy]
+    for jj in range(1, num_grp):
+        fig['layout']['yaxis' + str(jj + 1)]['showticklabels'] = False
+    fig['layout']['yaxis' + str(num_grp + 2 + jj)]['showticklabels'] = False
+    
+    meds = score_df.groupby(['grp', xplot_name], observed=True)['yh'].median()
+    medr = meds.groupby('grp').max() - meds.groupby('grp').min()
+    imp_within = medr.max()
+    
+    return fig, imp_within
+
+
 def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None, num_sample=100, cat_top=10,
-             in_browser=False, column=None, title=None):
+             in_browser=False, column=None, title=None, slices=dict()):
     """
     Generate plots to illustrate the marginal effects of the model 'model'. Live plots are output to the default
     browser and, optionally, png's are written to plot_dir
@@ -640,6 +869,9 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     :type column: int or list of ints
     :param title: optional additional title for graphs
     :type title: str
+    :param slices: optional slices of sample_df_in to also make graphs for. key to dict is name of slice, entry is
+                   boolean array for .loc access to sample_df_in
+    :type slices: dict
     :return: for each target, the range of the median across the target levels for each model output group
     :rtype dict
     """
@@ -652,10 +884,10 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     sample_df = sample_df_in.copy()
     
     sample_df['target'] = np.full(sample_df.shape[0], 0.0)
-    score_ds = tfu.get_tf_dataset(features_dict, 'target', sample_df, sample_df.shape[0], 1)
+    score_ds = get_tf_dataset(features_dict, 'target', sample_df, sample_df.shape[0], 1)
     
     # get and process the model output
-    sample_df['yh'] = tfu.get_pred(model.predict(score_ds), column)  # np.array(model.predict(score_ds)).flatten()
+    sample_df['yh'] = get_pred(model.predict(score_ds), column)  # np.array(model.predict(score_ds)).flatten()
     target_qs = [0, .1, .25, .5, .75, .9, 1]
     quantiles = sample_df['yh'].quantile(target_qs)
     quantiles.iloc[0] -= 1.0
@@ -674,168 +906,31 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
         sub_title += 'Quantile {0} to {1}'.format(target_qs[j], target_qs[j + 1])
         sub_titles += [sub_title]
     sub_titles += ['Place Holder']
-    sub_titles += []
+    slices['Overall'] = np.full((sample_df.shape[0]), True)
     
     # go through the features
     for target in features_target:
         # the specs list gives some padding between the top of the plots and the overall title
-        if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
-            sub_titles[6] = 'Box Plots'
-        else:
-            sub_titles[6] = 'Across Group<br>Distribution'
-        fig = make_subplots(rows=2, cols=num_grp + 1, subplot_titles=sub_titles,
-                            row_heights=[1, .5],
-                            specs=[[{'t': 0.07, 'b': -.1}, {'t': 0.07, 'b': -.10}, {'t': 0.07, 'b': -.10},
-                                    {'t': 0.07, 'b': -.10}, {'t': 0.07, 'b': -.10}, {'t': 0.07, 'b': -.10},
-                                    {'t': 0.35, 'b': -0.35}],
-                                   [{'t': -0.07}, {'t': -.07}, {'t': -.07}, {'t': -0.07}, {'t': -.07},
-                                    {'t': -.07}, None]])
-        
-        median_ranges = []
-        if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
-            lows = sample_df.groupby('grp')[target].quantile(.01)
-            highs = sample_df.groupby('grp')[target].quantile(.99)
-            both = pd.merge(left=lows, right=highs, left_index=True, right_index=True)
-            both.rename(columns={target + '_x': 'low', target + '_y': 'high'}, inplace=True)
-            to_join = pd.concat([both] * 11).sort_index()
-            xval = np.arange(11) / 10
-            xval = np.concatenate([xval] * num_grp)
-            to_join['steps'] = xval
-            to_join[target] = to_join['low'] + (to_join['high'] - to_join['low']) * to_join['steps']
-        else:
-            vcts = sample_df.groupby('grp')[target].value_counts().rename('cts', inplace=True).reset_index()
-            to_join = vcts.groupby('grp').head(10).reset_index()
-            to_join.set_index('grp', inplace=True)
-            vcts_tot = vcts.groupby(target)['cts'].sum().rename('tots').reset_index()
-            probs = pd.merge(vcts, vcts_tot, on=target)
-            probs['prob'] = probs['cts'] / probs['tots']
-            itop = probs[target].isin(to_join[target].unique())
-            probs = probs.loc[itop]
-        
-        samps = sample_df.groupby('grp').sample(num_sample)
-        samps['samp_num'] = np.arange(samps.shape[0])
-        samps.pop(target)
-        score_df = pd.merge(samps, to_join[target], on='grp')
-        nobs = score_df.shape[0]
-        score_df['target'] = np.full(nobs, 0.0)  # noop value
-        score_ds = tfu.get_tf_dataset(features_dict, 'target', score_df, nobs, 1)
-        
-        # get model output
-        score_df['yh'] = tfu.get_pred(model.predict(score_ds), column)
-        
-        xplot_name = target + '_str'
-        if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
-            score_df[xplot_name] = np.round(score_df[target], 2).astype(str)
-        else:
-            score_df[xplot_name] = score_df[target].astype(str)
-        for j in range(num_grp):
-            i = score_df['grp'] == 'grp' + str(j)
-            fig.add_trace(go.Box(x=score_df.loc[i][xplot_name], y=score_df.loc[i]['yh'], marker=dict(color=cols[j])),
-                          row=1, col=j + 1)
-        
-        # generate row 2 plots
-        if features_dict[target][0] != 'cts' and features_dict[target][0] != 'spl':
-            maxp = 0.0
-            for j in range(num_grp):
-                g = 'grp' + str(j)
-                grp_vals = to_join.loc[g][target]
-                i = (probs['grp'] == g) & (probs[target].isin(grp_vals))
-                pi = probs.loc[i].sort_values('cts', ascending=False)
-                p = pi['cts'] / pi['cts'].sum()
-                if p.max() > maxp:
-                    maxp = p.max()
-                fig.add_trace(go.Bar(x=pi[target], y=p, marker=dict(color=cols[j]), name='Group ' + str(j)),
-                              row=2, col=j + 1)
-            for jj in range(num_grp):
-                fig['layout']['yaxis' + str(num_grp + 2 + jj)]['range'] = [0.0, maxp]
-            xlab = '(Up to top 10 levels within group)'
-        else:
-            maxyr2 = 0.0
-            for j in range(num_grp):
-                i = sample_df['grp'] == 'grp' + str(j)
-                fig.add_trace(go.Histogram(x=sample_df.loc[i][target], marker=dict(color=cols[j]),
-                                           histnorm='probability density'),
-                              row=2, col=j + 1)
-                # this appears to be the only way to get the bin heights of the histogram -- the histogrm is built
-                # by javascript. All that's stored in the
-                ym = fig.full_figure_for_development(warn=False)['layout']['yaxis' + str(num_grp + 2 + j)]['range'][1]
-                if ym > maxyr2:
-                    maxyr2 = ym
-            xlab = '(Values between 1%ile-99%ile within group)'
-            xrng = sample_df[target].quantile([0.01, 0.99])
-            xmin2 = float(xrng.iloc[0])
-            xmax2 = float(xrng.iloc[1])
-            xmin2 -= 0.01 * (xmax2 - xmin2)
-            xmax2 += 0.01 * (xmax2 - xmin2)
-            for j in range(num_grp):
-                fig['layout']['yaxis' + str(num_grp + 2 + j)]['range'] = [0, maxyr2]
-                fig['layout']['xaxis' + str(num_grp + 2 + j)]['range'] = [xmin2, xmax2]
-        
-        # RHS graph
-        if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
-            for j, g in enumerate(['grp' + str(j) for j in range(num_grp)]):
-                i = sample_df['grp'] == g
-                if j == 0:
-                    nm = 'Lowest'
-                elif j == num_grp - 1:
-                    nm = 'Highest'
-                else:
-                    nm = 'G' + str(j)
-                fig.add_trace(go.Box(y=sample_df.loc[i][target], name=nm, marker=dict(color=cols[j]), ),
-                              row=1, col=num_grp + 1)
-            mm = sample_df[target].quantile([0.01, 0.99])
-            minys = float(mm.iloc[0])
-            maxys = float(mm.iloc[1])
-            fig['layout']['yaxis' + str(num_grp + 1)]['range'] = [minys, maxys]
-        else:
-            cats = probs[target].unique()
-            nhead = 3
-            while cats.shape[0] > 6:
-                cats = probs.sort_values(['grp', 'prob'], ascending=[True, False]).groupby('grp').head(nhead)[
-                    target].unique()
-                nhead -= 1
-            for cat in cats:
-                i = probs[target] == cat
-                fig.add_trace(go.Bar(x=probs.loc[i]['grp'], y=probs.loc[i]['prob'], text=cat,
-                                     textposition='outside', marker=dict(color=cols), name=cat),
-                              row=1, col=num_grp + 1)
-        
-        # overall title
-        titl = ''
-        if title is not None:
-            titl = title + '<br>' + titl
-        titl += 'Marginal Response for ' + target
-        fig.update_layout(
-            title=dict(text=titl, font=dict(size=24), xanchor='center', xref='paper',
-                       x=0.5), showlegend=False)
-        # add label at bottom of graphs
-        fig.add_annotation(text=target, font=dict(size=16), x=0.5, xanchor='center', xref='paper', y=0,
-                           yanchor='top', yref='paper', yshift=-40, showarrow=False)
-        fig.add_annotation(text=xlab, font=dict(size=10), x=0.5, xanchor='center', xref='paper', y=0,
-                           yanchor='top', yref='paper', yshift=-60, showarrow=False)
-        fig.add_annotation(text='Within Group Distribution', font=dict(size=20), x=0.45, xanchor='center', xref='paper',
-                           y=.4, yanchor='top', yref='paper', yshift=-40, showarrow=False)
-        maxy = score_df['yh'].max()
-        miny = score_df['yh'].min()
-        for jj in range(num_grp):
-            fig['layout']['yaxis' + str(jj + 1)]['range'] = [miny, maxy]
-        for jj in range(1, num_grp):
-            fig['layout']['yaxis' + str(jj + 1)]['showticklabels'] = False
-        fig['layout']['yaxis' + str(num_grp + 2 + jj)]['showticklabels'] = False
-        if in_browser:
-            fig.show()
-        if plot_dir is not None:
-            fname = plot_dir + 'html/' + target + '.html'
-            fig.write_html(fname)
-            
-            # needed for png to look decent
-            fig.update_layout(width=1800, height=1150)
-            fname = plot_dir + 'png/' + target + '.png'
-            fig.write_image(fname)
-        
-        meds = score_df.groupby(['grp', xplot_name], observed=True)['yh'].median()
-        medr = meds.groupby('grp').max() - meds.groupby('grp').min()
-        importance[target] = medr.max()
+        for k in slices.keys():
+            i = slices[k]
+            title_aug = title + '<br>Slice: ' + k
+            if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
+                fig, imp_in = _marginal_cts(model, column, features_dict, sample_df.loc[i], target, num_grp, num_sample, title_aug,
+                                            sub_titles, cols)
+            else:
+                fig, imp_in = _marginal_cat(model, column, features_dict, sample_df.loc[i], target, num_grp, num_sample, title_aug,
+                                            sub_titles, cols)
+            importance[target + '_' + k] = imp_in
+            if in_browser:
+                fig.show()
+            if plot_dir is not None:
+                fname = plot_dir + 'html/' + target + '_' + k + '.html'
+                fig.write_html(fname)
+                
+                # needed for png to look decent
+                fig.update_layout(width=1800, height=1150)
+                fname = plot_dir + 'png/' + target + '_' + k + '.png'
+                fig.write_image(fname)
     
     imp_df = pd.DataFrame(importance, index=['importance']).transpose()
     imp_df = imp_df.sort_values('importance', ascending=False)

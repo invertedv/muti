@@ -394,7 +394,7 @@ def decile_plot(score_variable, binary_variable, xlab='Score', ylab='Actual', ti
     return
 
 
-def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles=10,
+def fit_by_feature_old(features, targets, sample_df_in, plot_dir=None, num_quantiles=10,
                    boot_samples=1000, boot_coverage=0.95, extra_title=None, in_browser=False,
                    plot_box=False):
     """
@@ -681,3 +681,138 @@ def importance_ranking_print(imp_dict, keys, title):
             y = y.rename(columns={y.columns[0]: k})
             x = x.join(y)
     print(x)
+
+
+def boot_mean(y_in, num_samples, coverage=0.95):
+    """
+    Bootstraps the mean of y_in to form a CI with coverage 'coverage'.
+    Assumes there's enough correlation in the data to reduce the effective sample size to 1/4 the length
+    of y_in.
+
+    :param y_in: data to form a CI for
+    :type y_in: pandas Series
+    :param num_samples: # of bootstrap samples to run
+    :type num_samples: int
+    :param coverage: CI coverage level (as a decimal)
+    :type coverage: float
+    :return: bootstrap CI
+    :rtype list
+    """
+    means = []
+    n = int(y_in.shape[0] / 4)
+    alpha2 = (1.0 - coverage) / 2.0
+    for j in range(num_samples):
+        ys = y_in.sample(n, replace=True)
+        means += [ys.mean()]
+    med_df = pd.DataFrame({'means': means})
+    ci_boot = med_df.quantile([alpha2, 1.0 - alpha2])
+    return list(ci_boot['means'])
+
+
+def fit1(feature, feature_type, y, yh, sample_df, num_quantiles, boot_samples, boot_coverage, extra_title):
+    if feature_type == 'cts' or feature_type == 'spl':
+        us = np.arange(num_quantiles + 1) / num_quantiles
+        quantiles = sample_df[feature].quantile(us).unique()
+        quantiles[0] -= 1.0
+        decimals = 5
+        while np.unique(np.round(quantiles, decimals)).shape[0] == quantiles.shape[0]:
+            decimals -= 1
+            if decimals < 0:
+                break
+        quantiles = np.round(quantiles, decimals + 1)
+        if decimals < 0:
+            quantiles = quantiles.astype(int)
+        sample_df[feature] = pd.cut(sample_df[feature], quantiles,
+                                    labels=[feature + ' ' + str(quantiles[j + 1]) for j in
+                                            range(quantiles.shape[0] - 1)], right=True)
+    
+    co = sample_df.groupby(feature)[[y, yh]].mean()
+    fig1 = [go.Scatter(x=co[yh], y=co[y], mode='markers', name='',
+                       customdata=co.index, marker=dict(color='black'),
+                       hovertemplate='%{customdata}<br>Model %{x}<br>Actual %{y}')]
+    for indx in co.index:
+        i = sample_df[feature] == indx
+        ci = boot_mean(sample_df.loc[i][y], boot_samples, coverage=boot_coverage)
+        x = [co.loc[indx][yh], co.loc[indx][yh]]
+        fig1 += [go.Scatter(x=x, y=ci, mode='lines', line=dict(color='black'), name='')]
+    minv = min([co[y].min(), co[yh].min()])
+    maxv = max([co[y].max(), co[yh].max()])
+    fig1 += [go.Scatter(x=[minv, maxv], y=[minv, maxv], mode='lines', line=dict(color='red'), name='')]
+    title = 'Model vs Actual Grouped by ' + feature
+    if extra_title is not None:
+        title += '<br>' + extra_title
+    layout1 = go.Layout(title=dict(text=title, x=0.5, xref='paper',
+                                   font=dict(size=24)),
+                        xaxis=dict(title='Model Output'),
+                        yaxis=dict(title=y),
+                        height=800,
+                        width=800,
+                        showlegend=False)
+    figx1 = go.Figure(fig1, layout=layout1)
+    xlab = 'Bootstrap CI at {0:.0f}% coverage'.format(100 * boot_coverage)
+    figx1.add_annotation(text=xlab, font=dict(size=10), x=0.5, xanchor='center', xref='paper', y=0,
+                         yanchor='top', yref='paper', yshift=-50, showarrow=False)
+    return figx1
+
+
+def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles=10,
+                   boot_samples=1000, boot_coverage=0.95, in_browser=False, plot_ks=False,
+                   slices=dict()):
+    """
+    Generates two plots to assess model fit.
+
+    The first is a set of paired boxplots of the model output and target 'y' grouped by values of the feature.
+    The second is a plot of the mean model output versus mean target 'y' grouped by values of the feature.
+
+    :param features: features to generate plots for, key is feature name, value is 'cts'/'spl', 'cat', 'emb'.
+    :type features: dict
+    :param targets: dict with keys 'model_output' and 'target' that point to columns in sample_df_in
+    :type targets dict
+    :param sample_df_in: DataFrame from which to take samples and calculate distributions
+    :type sample_df_in: pandas DataFrame
+    :param plot_dir: directory to write plots out to
+    :type plot_dir: str
+    :param num_quantiles: number of quantiles at which to discretize continuous variables
+    :type num_quantiles: int
+    :param boot_samples: # of bootstrap samples to take
+    :type boot_samples: int
+    :param boot_coverage: coverage of bootstrap CI
+    :type boot_coverage: float
+    :param in_browser: True means also show in browser
+    :type in_browser: bool
+    :param plot_ks: if True, generate KS plot
+    :type plot_ks: bool
+    :param slices: optional slices of sample_df_in to also make graphs for. key to dict is name of slice, entry is
+                   boolean array for .loc access to sample_df_in
+    :type slices: dict
+
+    """
+    
+    pio.renderers.default = 'browser'
+    y = targets['target']
+    yh = targets['model_output']
+    
+    slices['Overall'] = np.full(sample_df_in.shape[0], True)
+    for feature in features.keys():
+        for slice in slices.keys():
+            i = slices[slice]
+            sample_df = sample_df_in.loc[i].copy()
+            et = 'Slice: ' + slice
+            
+            figx1 = fit1(feature, features[feature][0], y, yh, sample_df,
+                         num_quantiles, boot_samples, boot_coverage, et)
+            if in_browser:
+                figx1.show()
+            if plot_dir is not None:
+                if plot_dir[-1] != '/':
+                    plot_dir += '/'
+                
+                fname = plot_dir + 'png/CrossMeanModelFit' + feature + '_' + slice + '.png'
+                figx1.write_image(fname)
+                
+                fname = plot_dir + 'html/CrossMeanModelFit' + feature + '_' + slice + '.html'
+                figx1.write_html(fname)
+            if plot_ks:
+                ks_calculate(sample_df[yh], sample_df[y], plot=True, title=et,
+                                  plot_dir=plot_dir, out_file='KS_' + slice)
+
