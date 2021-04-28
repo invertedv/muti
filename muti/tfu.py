@@ -440,7 +440,7 @@ def marginal_old(model, features_target, features_dict, sample_df_in, plot_dir=N
             score_df = pd.DataFrame({target: xval})
             
             # pick a random sample within the model output group
-            vals = sample_df.loc[i].sample(num_sample)
+            vals = sample_df.loc[i].sample(num_sample, replace=True)
             
             # go across the number of samples to draw
             for k in range(num_sample):
@@ -613,7 +613,7 @@ def _marginal_cts(model, column, features_dict, sample_df, target, num_grp, num_
     to_join['steps'] = xval
     to_join[target] = to_join['low'] + (to_join['high'] - to_join['low']) * to_join['steps']
     
-    samps = sample_df.groupby('grp').sample(num_sample)
+    samps = sample_df.groupby('grp').sample(num_sample, replace=True)
     samps['samp_num'] = np.arange(samps.shape[0])
     samps.pop(target)
     score_df = pd.merge(samps, to_join[target], on='grp')
@@ -731,7 +731,7 @@ def _marginal_cat(model, column, features_dict, sample_df, target, num_grp, num_
     itop = probs[target].isin(to_join[target].unique())
     probs = probs.loc[itop]
     
-    samps = sample_df.groupby('grp').sample(num_sample)
+    samps = sample_df.groupby('grp').sample(num_sample, replace=True)
     samps['samp_num'] = np.arange(samps.shape[0])
     samps.pop(target)
     score_df = pd.merge(samps, to_join[target], on='grp')
@@ -807,7 +807,7 @@ def _marginal_cat(model, column, features_dict, sample_df, target, num_grp, num_
     return fig, imp_within
 
 
-def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None, num_sample=100, cat_top=10,
+def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None, num_sample=100,
              in_browser=False, column=None, title=None, slices=dict()):
     """
     Generate plots to illustrate the marginal effects of the model 'model'. Live plots are output to the default
@@ -879,6 +879,8 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     if plot_dir is not None:
         if plot_dir[-1] != '/':
             plot_dir += '/'
+        os.makedirs(plot_dir + 'html/', exist_ok=True)
+        os.makedirs(plot_dir + 'png/', exist_ok=True)
     pio.renderers.default = 'browser'
     
     sample_df = sample_df_in.copy()
@@ -911,25 +913,27 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     # go through the features
     for target in features_target:
         # the specs list gives some padding between the top of the plots and the overall title
-        for k in slices.keys():
-            i = slices[k]
-            title_aug = title + '<br>Slice: ' + k
+        for slice in slices.keys():
+            i = slices[slice]
+            title_aug = title + '<br>Slice: ' + slice
             if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
                 fig, imp_in = _marginal_cts(model, column, features_dict, sample_df.loc[i], target, num_grp, num_sample, title_aug,
                                             sub_titles, cols)
             else:
                 fig, imp_in = _marginal_cat(model, column, features_dict, sample_df.loc[i], target, num_grp, num_sample, title_aug,
                                             sub_titles, cols)
-            importance[target + '_' + k] = imp_in
+            importance[target + '_' + slice] = imp_in
             if in_browser:
                 fig.show()
             if plot_dir is not None:
-                fname = plot_dir + 'html/' + target + '_' + k + '.html'
+                os.makedirs(plot_dir + 'html/', exist_ok=True)
+                os.makedirs(plot_dir + 'png/', exist_ok=True)
+                fname = plot_dir + 'html/' + slice + '_' + target + '.html'
                 fig.write_html(fname)
                 
                 # needed for png to look decent
                 fig.update_layout(width=1800, height=1150)
-                fname = plot_dir + 'png/' + target + '_' + k + '.png'
+                fname = plot_dir + 'png/' + slice + '_' + target + '.png'
                 fig.write_image(fname)
     
     imp_df = pd.DataFrame(importance, index=['importance']).transpose()

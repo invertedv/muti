@@ -709,7 +709,7 @@ def boot_mean(y_in, num_samples, coverage=0.95):
     return list(ci_boot['means'])
 
 
-def fit1(feature, feature_type, y, yh, sample_df, num_quantiles, boot_samples, boot_coverage, extra_title):
+def fit1(feature, feature_type, y_name, yh_name, sample_df, num_quantiles, boot_samples, boot_coverage, extra_title):
     if feature_type == 'cts' or feature_type == 'spl':
         us = np.arange(num_quantiles + 1) / num_quantiles
         quantiles = sample_df[feature].quantile(us).unique()
@@ -726,17 +726,17 @@ def fit1(feature, feature_type, y, yh, sample_df, num_quantiles, boot_samples, b
                                     labels=[feature + ' ' + str(quantiles[j + 1]) for j in
                                             range(quantiles.shape[0] - 1)], right=True)
     
-    co = sample_df.groupby(feature)[[y, yh]].mean()
-    fig1 = [go.Scatter(x=co[yh], y=co[y], mode='markers', name='',
+    co = sample_df.groupby(feature)[[y_name, yh_name]].mean()
+    fig1 = [go.Scatter(x=co[yh_name], y=co[y_name], mode='markers', name='',
                        customdata=co.index, marker=dict(color='black'),
                        hovertemplate='%{customdata}<br>Model %{x}<br>Actual %{y}')]
     for indx in co.index:
         i = sample_df[feature] == indx
-        ci = boot_mean(sample_df.loc[i][y], boot_samples, coverage=boot_coverage)
-        x = [co.loc[indx][yh], co.loc[indx][yh]]
+        ci = boot_mean(sample_df.loc[i][y_name], boot_samples, coverage=boot_coverage)
+        x = [co.loc[indx][yh_name], co.loc[indx][yh_name]]
         fig1 += [go.Scatter(x=x, y=ci, mode='lines', line=dict(color='black'), name='')]
-    minv = min([co[y].min(), co[yh].min()])
-    maxv = max([co[y].max(), co[yh].max()])
+    minv = min([co[y_name].min(), co[yh_name].min()])
+    maxv = max([co[y_name].max(), co[yh_name].max()])
     fig1 += [go.Scatter(x=[minv, maxv], y=[minv, maxv], mode='lines', line=dict(color='red'), name='')]
     title = 'Model vs Actual Grouped by ' + feature
     if extra_title is not None:
@@ -744,7 +744,7 @@ def fit1(feature, feature_type, y, yh, sample_df, num_quantiles, boot_samples, b
     layout1 = go.Layout(title=dict(text=title, x=0.5, xref='paper',
                                    font=dict(size=24)),
                         xaxis=dict(title='Model Output'),
-                        yaxis=dict(title=y),
+                        yaxis=dict(title=y_name),
                         height=800,
                         width=800,
                         showlegend=False)
@@ -787,10 +787,15 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
     :type slices: dict
 
     """
-    
+    if plot_dir is not None:
+        if plot_dir[-1] != '/':
+            plot_dir += '/'
+        os.makedirs(plot_dir + 'html/', exist_ok=True)
+        os.makedirs(plot_dir + 'png/', exist_ok=True)
+
     pio.renderers.default = 'browser'
-    y = targets['target']
-    yh = targets['model_output']
+    y_name = targets['target']
+    yh_name = targets['model_output']
     
     slices['Overall'] = np.full(sample_df_in.shape[0], True)
     for feature in features.keys():
@@ -799,20 +804,17 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
             sample_df = sample_df_in.loc[i].copy()
             et = 'Slice: ' + slice
             
-            figx1 = fit1(feature, features[feature][0], y, yh, sample_df,
+            figx1 = fit1(feature, features[feature][0], y_name, yh_name, sample_df,
                          num_quantiles, boot_samples, boot_coverage, et)
             if in_browser:
                 figx1.show()
             if plot_dir is not None:
-                if plot_dir[-1] != '/':
-                    plot_dir += '/'
-                
-                fname = plot_dir + 'png/CrossMeanModelFit' + feature + '_' + slice + '.png'
+                fname = plot_dir + 'png/CrossMeanModelFit' + slice + '_' + feature + '.png'
                 figx1.write_image(fname)
                 
-                fname = plot_dir + 'html/CrossMeanModelFit' + feature + '_' + slice + '.html'
+                fname = plot_dir + 'html/CrossMeanModelFit' + slice + '_' + feature + '.html'
                 figx1.write_html(fname)
             if plot_ks:
-                ks_calculate(sample_df[yh], sample_df[y], plot=True, title=et,
+                ks_calculate(sample_df[yh_name], sample_df[y_name], plot=True, title=et,
                                   plot_dir=plot_dir, out_file='KS_' + slice)
 
