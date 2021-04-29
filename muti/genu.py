@@ -10,7 +10,7 @@ import plotly.io as pio
 import scipy.stats as stats
 import math
 import os
-
+import gc
 
 def r_square(yh, y):
     """
@@ -625,4 +625,5 @@ def fit_by_feature(features, targets, sample_df, plot_dir=None, num_quantiles=10
             if plot_ks:
                 ks_calculate(sample_df[yh_name], sample_df[y_name], plot=True, title=et,
                              plot_dir=pdir, out_file='KS_' + slice, in_browser=in_browser)
+        gc.collect()
 

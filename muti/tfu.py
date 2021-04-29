@@ -2,6 +2,7 @@
 Utilities that help with the building of tensorflow keras models
 
 """
+import gc
 
 import tensorflow as tf
 import os
@@ -696,6 +697,7 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
                 fig.update_layout(width=1800, height=1150)
                 fname = pdir + 'png/Marginal_' + target + '.png'
                 fig.write_image(fname)
+        gc.collect()
 
     imp_df = pd.DataFrame(importance, index=['importance']).transpose()
     imp_df = imp_df.sort_values('importance', ascending=False)
