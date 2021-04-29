@@ -683,7 +683,7 @@ def importance_ranking_print(imp_dict, keys, title):
     print(x)
 
 
-def boot_mean(y_in, num_samples, coverage=0.95):
+def boot_mean(y_in, num_samples, coverage=0.95, norm_ci=False):
     """
     Bootstraps the mean of y_in to form a CI with coverage 'coverage'.
     Assumes there's enough correlation in the data to reduce the effective sample size to 1/4 the length
@@ -695,12 +695,24 @@ def boot_mean(y_in, num_samples, coverage=0.95):
     :type num_samples: int
     :param coverage: CI coverage level (as a decimal)
     :type coverage: float
+    :param norm_ci: if True, then assumes independence
+    :type norm_ci: bool
     :return: bootstrap CI
     :rtype list
     """
-    means = []
-    n = int(y_in.shape[0] / 4)
+    
     alpha2 = (1.0 - coverage) / 2.0
+    if norm_ci:
+        phat = y_in.mean()
+        if y_in.nunique() > 2:
+            std = math.sqrt(y_in.std() / float(y_in.shape[0]))
+        else:
+            std = math.sqrt(phat * (1.0 - phat) / float(y_in.shape[0]))
+        crit = stats.norm.ppf(1.0 - alpha2)
+        norm_ci = [phat - crit * std, phat + crit * std]
+        return norm_ci
+    means = []
+    n = int(0.75 * y_in.shape[0])
     for j in range(num_samples):
         ys = y_in.sample(n, replace=True)
         means += [ys.mean()]
@@ -709,7 +721,7 @@ def boot_mean(y_in, num_samples, coverage=0.95):
     return list(ci_boot['means'])
 
 
-def fit1(feature, feature_type, y, yh, sample_df, num_quantiles, boot_samples, boot_coverage, extra_title):
+def fit1(feature, feature_type, y, yh, sample_df, num_quantiles, boot_samples, boot_coverage, norm_ci, extra_title):
     if feature_type == 'cts' or feature_type == 'spl':
         feature_grp = feature + '_grp'
         us = np.arange(num_quantiles + 1) / num_quantiles
@@ -735,7 +747,7 @@ def fit1(feature, feature_type, y, yh, sample_df, num_quantiles, boot_samples, b
                        hovertemplate='%{customdata}<br>Model %{x}<br>Actual %{y}')]
     for indx in co.index:
         i = feature_grp == indx
-        ci = boot_mean(sample_df.loc[i][y], boot_samples, coverage=boot_coverage)
+        ci = boot_mean(sample_df.loc[i][y], boot_samples, coverage=boot_coverage, norm_ci=norm_ci)
         x = [co.loc[indx][yh], co.loc[indx][yh]]
         fig1 += [go.Scatter(x=x, y=ci, mode='lines', line=dict(color='black'), name='')]
     minv = min([co[y].min(), co[yh].min()])
@@ -759,7 +771,7 @@ def fit1(feature, feature_type, y, yh, sample_df, num_quantiles, boot_samples, b
 
 
 def fit_by_feature(features, targets, sample_df, plot_dir=None, num_quantiles=10,
-                   boot_samples=1000, boot_coverage=0.95, in_browser=False, plot_ks=False,
+                   boot_samples=1000, boot_coverage=0.95, norm_ci=True, in_browser=False, plot_ks=False,
                    slices=dict()):
     """
     Generates two plots to assess model fit.
@@ -781,6 +793,8 @@ def fit_by_feature(features, targets, sample_df, plot_dir=None, num_quantiles=10
     :type boot_samples: int
     :param boot_coverage: coverage of bootstrap CI
     :type boot_coverage: float
+    :param norm_ci: if True, assume independence and CLT is OK
+    :type norm_ci: bool
     :param in_browser: True means also show in browser
     :type in_browser: bool
     :param plot_ks: if True, generate KS plot
@@ -801,7 +815,7 @@ def fit_by_feature(features, targets, sample_df, plot_dir=None, num_quantiles=10
             et = 'Slice: ' + slice
             
             figx1 = fit1(feature, features[feature][0], y_name, yh_name, sample_df.loc[i],
-                         num_quantiles, boot_samples, boot_coverage, et)
+                         num_quantiles, boot_samples, boot_coverage, norm_ci, et)
             if in_browser:
                 figx1.show()
             pd = None
