@@ -701,6 +701,8 @@ def boot_mean(y_in, num_samples, coverage=0.95, norm_ci=False):
     :rtype list
     """
     
+    if y_in.shape[0] == 0:
+        return [0.0, 0.0]
     alpha2 = (1.0 - coverage) / 2.0
     if norm_ci:
         phat = y_in.mean()
@@ -723,7 +725,6 @@ def boot_mean(y_in, num_samples, coverage=0.95, norm_ci=False):
 
 def fit1(feature, feature_type, y, yh, sample_df, num_quantiles, boot_samples, boot_coverage, norm_ci, extra_title):
     if feature_type == 'cts' or feature_type == 'spl':
-        feature_grp = feature + '_grp'
         us = np.arange(num_quantiles + 1) / num_quantiles
         quantiles = sample_df[feature].quantile(us).unique()
         quantiles[0] -= 1.0
@@ -747,9 +748,10 @@ def fit1(feature, feature_type, y, yh, sample_df, num_quantiles, boot_samples, b
                        hovertemplate='%{customdata}<br>Model %{x}<br>Actual %{y}')]
     for indx in co.index:
         i = feature_grp == indx
-        ci = boot_mean(sample_df.loc[i][y], boot_samples, coverage=boot_coverage, norm_ci=norm_ci)
-        x = [co.loc[indx][yh], co.loc[indx][yh]]
-        fig1 += [go.Scatter(x=x, y=ci, mode='lines', line=dict(color='black'), name='')]
+        if i.sum() > 0:
+            ci = boot_mean(sample_df.loc[i][y], boot_samples, coverage=boot_coverage, norm_ci=norm_ci)
+            x = [co.loc[indx][yh], co.loc[indx][yh]]
+            fig1 += [go.Scatter(x=x, y=ci, mode='lines', line=dict(color='black'), name='')]
     minv = min([co[y].min(), co[yh].min()])
     maxv = max([co[y].max(), co[yh].max()])
     fig1 += [go.Scatter(x=[minv, maxv], y=[minv, maxv], mode='lines', line=dict(color='red'), name='')]
