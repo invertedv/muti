@@ -876,11 +876,6 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     :rtype dict
     """
     
-    if plot_dir is not None:
-        if plot_dir[-1] != '/':
-            plot_dir += '/'
-        os.makedirs(plot_dir + 'html/', exist_ok=True)
-        os.makedirs(plot_dir + 'png/', exist_ok=True)
     pio.renderers.default = 'browser'
     
     sample_df = sample_df_in.copy()
@@ -926,14 +921,18 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
             if in_browser:
                 fig.show()
             if plot_dir is not None:
-                os.makedirs(plot_dir + 'html/', exist_ok=True)
-                os.makedirs(plot_dir + 'png/', exist_ok=True)
-                fname = plot_dir + 'html/' + slice + '_' + target + '.html'
+                if plot_dir[-1] != '/':
+                    plot_dir += '/'
+                pd = plot_dir + slice + '/'
+                os.makedirs(pd + 'html/', exist_ok=True)
+                os.makedirs(pd + 'png/', exist_ok=True)
+                
+                fname = pd + 'html/Marginal_'  + target + '.html'
                 fig.write_html(fname)
                 
                 # needed for png to look decent
                 fig.update_layout(width=1800, height=1150)
-                fname = plot_dir + 'png/' + slice + '_' + target + '.png'
+                fname = pd + 'png/Marginal_' + target + '.png'
                 fig.write_image(fname)
     
     imp_df = pd.DataFrame(importance, index=['importance']).transpose()

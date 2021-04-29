@@ -790,12 +790,6 @@ def fit_by_feature(features, targets, sample_df, plot_dir=None, num_quantiles=10
     :type slices: dict
 
     """
-    if plot_dir is not None:
-        if plot_dir[-1] != '/':
-            plot_dir += '/'
-        os.makedirs(plot_dir + 'html/', exist_ok=True)
-        os.makedirs(plot_dir + 'png/', exist_ok=True)
-
     pio.renderers.default = 'browser'
     y_name = targets['target']
     yh_name = targets['model_output']
@@ -810,13 +804,19 @@ def fit_by_feature(features, targets, sample_df, plot_dir=None, num_quantiles=10
                          num_quantiles, boot_samples, boot_coverage, et)
             if in_browser:
                 figx1.show()
+            pd = None
             if plot_dir is not None:
-                fname = plot_dir + 'png/CrossMeanModelFit' + slice + '_' + feature + '.png'
+                if plot_dir[-1] != '/':
+                    plot_dir += '/'
+                pd = plot_dir + slice + '/'
+                os.makedirs(pd + 'html/', exist_ok=True)
+                os.makedirs(pd + 'png/', exist_ok=True)
+                fname = pd + 'png/ModelFit_' + feature + '.png'
                 figx1.write_image(fname)
                 
-                fname = plot_dir + 'html/CrossMeanModelFit' + slice + '_' + feature + '.html'
+                fname = pd + 'html/ModelFit_' + feature + '.html'
                 figx1.write_html(fname)
             if plot_ks:
                 ks_calculate(sample_df[yh_name], sample_df[y_name], plot=True, title=et,
-                                  plot_dir=plot_dir, out_file='KS_' + slice, in_browser=in_browser)
+                                  plot_dir=pd, out_file='KS_' + slice, in_browser=in_browser)
 
