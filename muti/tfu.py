@@ -10,7 +10,7 @@ import pandas as pd
 import plotly.graph_objs as go
 import plotly.io as pio
 from plotly.subplots import make_subplots
-
+import warnings
 
 def get_pred(yh, column=None):
     """
@@ -440,11 +440,17 @@ def _marginal_cat(model, column, features_dict, sample_df, target, num_grp, num_
     :param num_grp: # of groups model output is sliced into
     :param num_sample: # of obs to take from sample_df to build graph
     :param title: title for graph
-    :param sub_titles: titles for subplots
+    :param sub_titles: titles for subplots -- must be 7 long
     :param cols: colors
     :return: plotly_fig and importance metric
     """
+
+    if len(sub_titles) != 7:
+        warnings.warn('Incorrect # of sub_titles')
+        return
     sub_titles[6] = 'Across Group<br>Distribution'
+    # 't' is top spacing, 'b' is bottom, 'None' means there is no graph in that cell. We make
+    # 2 x 7 -- eliminating the (2,7) graph and putting the RHS graph in the (1,7) position
     fig = make_subplots(rows=2, cols=num_grp + 1, subplot_titles=sub_titles,
                         row_heights=[1, .5],
                         specs=[[{'t': 0.07, 'b': -.1}, {'t': 0.07, 'b': -.10}, {'t': 0.07, 'b': -.10},
@@ -453,18 +459,27 @@ def _marginal_cat(model, column, features_dict, sample_df, target, num_grp, num_
                                [{'t': -0.07}, {'t': -.07}, {'t': -.07}, {'t': -0.07}, {'t': -.07},
                                 {'t': -.07}, None]])
     
+    # row 1 graphs
+    # get levels & counts of the feature within each MOG. Note these will be desc by count within MOG
     vcts = sample_df.groupby('grp')[target].value_counts().rename('cts', inplace=True).reset_index()
+    # keep at most the top 10 within each MOG
     to_join = vcts.groupby('grp').head(10).reset_index()
     to_join.set_index('grp', inplace=True)
+    # totals within each MOG
     vcts_tot = vcts.groupby(target)['cts'].sum().rename('tots').reset_index()
+    # normalize to probabilities
     probs = pd.merge(vcts, vcts_tot, on=target)
     probs['prob'] = probs['cts'] / probs['tots']
+    # keep those levels that are in any of the MOG graphs
     itop = probs[target].isin(to_join[target].unique())
     probs = probs.loc[itop]
     
+    # get sample
     samps = sample_df.groupby('grp').sample(num_sample, replace=True)
     samps['samp_num'] = np.arange(samps.shape[0])
+    # drop target -- we're going to replace these
     samps.pop(target)
+    # join to sample
     score_df = pd.merge(samps, to_join[target], on='grp')
     nobs = score_df.shape[0]
     score_df['target'] = np.full(nobs, 0.0)  # noop value
@@ -480,7 +495,7 @@ def _marginal_cat(model, column, features_dict, sample_df, target, num_grp, num_
         fig.add_trace(go.Box(x=score_df.loc[i][xplot_name], y=score_df.loc[i]['yh'], marker=dict(color=cols[j])),
                       row=1, col=j + 1)
     
-    # generate row 2 plots
+    # generate row 2 graphs
     maxp = 0.0
     for j in range(num_grp):
         g = 'grp' + str(j)
@@ -496,6 +511,9 @@ def _marginal_cat(model, column, features_dict, sample_df, target, num_grp, num_
         fig['layout']['yaxis' + str(num_grp + 2 + jj)]['range'] = [0.0, maxp]
     xlab = '(Up to top 10 levels within group)'
     
+    # Generate RHS graph. If we have too many categories, the graph is very difficult to read
+    # But we don't want just keep the top k because we may lose interesting changes across the MOGs,
+    # so let's keep the top K per MOG and keep lowering k until we get a value <= 6
     cats = probs[target].unique()
     nhead = 3
     while cats.shape[0] > 6:
@@ -539,7 +557,83 @@ def _marginal_cat(model, column, features_dict, sample_df, target, num_grp, num_
 
 
 def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None, num_sample=100, in_browser=False, column=None, title=None, slices=dict()):
+    """
+    Generate plots to illustrate the marginal effects of the model 'model'. Live plots are output to the default
+    browser and, optionally, png's are written to plot_dir
 
+    The process is:
+
+    - Define six model output groups (MOG) by the quantiles of the model output:
+        - Q(0) to Q(.1)
+        - Q(.1) to Q(.25)
+        - Q(.25) to Q(.5)
+        - Q(.5) to Q(.75)
+        - Q(.75) to Q(.9)
+        - Q(.9) to Q(1)
+
+    - for each feature in features:
+        - **top row**: Six graphs are contructed: one for each group defined above.
+            -  For each MOG
+                1. A random sample of size num_sample is taken from the MOG
+                2. The target feature is replaced by:
+                    - Continuous Feature: an equally spaced array from Q(0.01) to Q(0.99) where the quantiles are
+                      found on the feature values within the MOG
+                    - Categorical feature: the levels of the feature within the MOG arranged in descending frequency
+                      within the MOG
+                3. The model output is found for all these
+                4. Grouped boxplots are formed.
+            - These plots have a common y-axis range
+
+        - **bottom row**: Six graphs are constructed. These graphs show the distribution of the feature *within* the
+          MOG.
+        - RHS (right-hand side) graph show the distribution of the feature.
+            - For continuous features, these are box plots of the feature distribution *within* each model output group.
+              They are the boxpolot equivalent of the bottom row.
+            - For discrete features, these are bar charts of each feature level *across* the model output groups.
+              These ARE NOT the feature distribution within each model group (bottom row).
+
+    Features:
+        - Since the x-values are sampled from sample_df, any correlation within the features not plotted on the
+          x-axis are preserved.
+        - The values of the target feature used are those observed within each MOG, so extrapolation
+          into unobserved space is reduced. The potential correlation between this feature and the others, however,
+          is lost.
+
+    **Return** a metric that rates the importance of the feature to the model (e.g. sloping). It is calculated as:
+
+    - For each MOG top row graph, calculate the range of the median from the boxplots.
+    - Find the maximum range across the six MOGs.
+    - This value is termed 'importance' and is returned.
+
+    Currently the MOG groups are defined once -- not separately for each slice
+
+    :param model: A keras tf model with a 'predict' method that takes a tf dataset as input
+    :type model: tf.keras.Mode
+    :param features_target: features to generate plots for.
+    :type features_target: list of str
+    :param features_dict: dictionary whose keys are the features in the model
+    :type features_dict: dict
+    :param sample_df_in: DataFrame from which to take samples and calculate distributions
+    :type sample_df_in:  pandas DataFrame
+    :param plot_dir: directory to write plots out to
+    :type plot_dir: str
+    :param num_sample: number of samples to base box plots on
+    :type num_sample: int
+    :param cat_top: maximum number of levels of categorical variables to plot
+    :type cat_top: int
+    :param in_browser: if True, plot in browser
+    :type in_browser: bool
+    :param column: column or list of columns to use from keras model .predict
+    :type column: int or list of ints
+    :param title: optional additional title for graphs
+    :type title: str
+    :param slices: optional slices of sample_df_in to also make graphs for. key to dict is name of slice, entry is
+                   boolean array for .loc access to sample_df_in
+    :type slices: dict
+    :return: for each target, the range of the median across the target levels for each model output group
+    :rtype dict
+    """
+    
     pio.renderers.default = 'browser'
     
     sample_df = sample_df_in.copy()
@@ -553,15 +647,18 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     quantiles = sample_df['yh'].quantile(target_qs)
     quantiles.iloc[0] -= 1.0
     num_grp = quantiles.shape[0] - 1
-    # now we have the six groups that we will base the graphs on
-    
+    if num_grp != 6:
+        warnings.warn('Did not get 6 MOG groups for')
+        return
+    # now we have the six MOG groups that we will base the graphs on
     sample_df['grp'] = pd.cut(sample_df['yh'], quantiles, labels=['grp' + str(j) for j in range(num_grp)], right=True)
 
     sub_titles = []
     importance = {}
     # reverse(ROYGBIV)
     cols = ['#7d459c', '#2871a7', '#056916', '#dbac1a', '#dd7419', '#bd0d0d']
-    
+
+    # graph titles. The title of the RHS graph depends on the feature type -- so it's assigned later
     for j in range(num_grp):
         sub_title = 'Model Output in {0} to {1}'.format(round(quantiles.iloc[j], 2), round(quantiles.iloc[j + 1], 2))
         sub_title += '<br>'
@@ -572,7 +669,7 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     
     # go through the features
     for target in features_target:
-        # the specs list gives some padding between the top of the plots and the overall title
+        # run through the slices
         for slice in slices.keys():
             i = slices[slice]
             title_aug = title + '<br>Slice: ' + slice
