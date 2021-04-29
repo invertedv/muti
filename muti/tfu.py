@@ -754,7 +754,7 @@ def _marginal_cat(model, column, features_dict, sample_df, target, num_grp, num_
     for j in range(num_grp):
         g = 'grp' + str(j)
         grp_vals = to_join.loc[g][target]
-        i = (probs['grp'] == g) & (probs[target].isin(grp_vals))
+        i = (probs['grp'] == g) & (probs[target].isin(list(grp_vals)))
         pi = probs.loc[i].sort_values('cts', ascending=False)
         p = pi['cts'] / pi['cts'].sum()
         if p.max() > maxp:
