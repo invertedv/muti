@@ -557,7 +557,7 @@ def _marginal_cat(model, column, features_dict, sample_df, target, num_grp, num_
     return fig, imp_within
 
 
-def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None, num_sample=100, in_browser=False, column=None, title=None, slices=dict()):
+def marginal(model, features_target, features_dict, sample_df, model_col, plot_dir=None, num_sample=100, in_browser=False, column=None, title=None, slices=dict()):
     """
     Generate plots to illustrate the marginal effects of the model 'model'. Live plots are output to the default
     browser and, optionally, png's are written to plot_dir
@@ -616,6 +616,8 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     :type features_dict: dict
     :param sample_df_in: DataFrame from which to take samples and calculate distributions
     :type sample_df_in:  pandas DataFrame
+    :param model_col: name of model output in sample_df
+    :type model_col: str
     :param plot_dir: directory to write plots out to
     :type plot_dir: str
     :param num_sample: number of samples to base box plots on
@@ -637,22 +639,15 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     
     pio.renderers.default = 'browser'
     
-    sample_df = sample_df_in.copy()
-    
-    sample_df['target'] = np.full(sample_df.shape[0], 0.0)
-    score_ds = get_tf_dataset(features_dict, 'target', sample_df, sample_df.shape[0], 1)
-    
-    # get and process the model output
-    sample_df['yh'] = get_pred(model.predict(score_ds), column)  # np.array(model.predict(score_ds)).flatten()
     target_qs = [0, .1, .25, .5, .75, .9, 1]
-    quantiles = sample_df['yh'].quantile(target_qs)
+    quantiles = sample_df[model_col].quantile(target_qs)
     quantiles.iloc[0] -= 1.0
     num_grp = quantiles.shape[0] - 1
     if num_grp != 6:
-        warnings.warn('Did not get 6 MOG groups for')
+        warnings.warn('Did not get 6 MOG groups')
         return
     # now we have the six MOG groups that we will base the graphs on
-    sample_df['grp'] = pd.cut(sample_df['yh'], quantiles, labels=['grp' + str(j) for j in range(num_grp)], right=True)
+    sample_df['grp'] = pd.cut(sample_df[model_col], quantiles, labels=['grp' + str(j) for j in range(num_grp)], right=True)
 
     sub_titles = []
     importance = {}
@@ -697,7 +692,7 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
                 fig.update_layout(width=1800, height=1150)
                 fname = pdir + 'png/Marginal_' + target + '.png'
                 fig.write_image(fname)
-        gc.collect()
+            gc.collect()
 
     imp_df = pd.DataFrame(importance, index=['importance']).transpose()
     imp_df = imp_df.sort_values('importance', ascending=False)
