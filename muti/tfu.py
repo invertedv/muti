@@ -3,10 +3,8 @@ Utilities that help with the building of tensorflow keras models
 
 """
 
-import muti.genu as gen
 import tensorflow as tf
 import os
-import math
 import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
@@ -292,295 +290,10 @@ def incr_build(model,  by_var, start_list, add_list, get_data_fn, sample_size, f
     return segs, global_valid_df
 
 
-def marginal_old(model, features_target, features_dict, sample_df_in, plot_dir=None, num_sample=100, cat_top=10,
-             in_browser=False, column=None, title=None):
-    """
-    Generate plots to illustrate the marginal effects of the model 'model'. Live plots are output to the default
-    browser and, optionally, png's are written to plot_dir
-
-    The process is:
-
-    - The model output is found on sample_df:
-        - Six groups based on the quantiles [0, .1,. .25, .5, .75, .9, 1] are found from sample_df.
-    - for each feature in features:
-        **Row 1**
-        - Six graphs are contructed: one for each group defined above.
-            - The graph covers
-            -  A random sample of size num_sample is taken from this group
-            -  The target feature value is replace by an array that has values of its
-               [0.01, .1, .2, .3, .4, .5, .6, .7, .8, 0.9, 0.99] quantiles in this group, if it is continuous or
-               is the top cat_top [None means all] most frequent levels if categorical
-            - The model output is found for all these
-            - Boxplots are formed.  These plots have a common y-axis with limits from the .01 to .99 quantile
-              of the model output on sample_df
-        **Row 2**
-        - Six graphs that show the distribution of the feature within each model output group.
-        **Right-hand graph**
-        - The distribution of the feature
-            - For continuous features, these are box plots of the feature distribution *within* each model output group.
-              These are the boxplot equivalent of the row 2 histograms
-            - For discrete features, these are bar plots of each feature level *across* the model output groups.
-              These ARE NOT the feature distribution within each model group (row 2) -- which is influenced the the
-              prevelance of feature levels (e.g. there are a lot of loans in CA).
-
-    Features:
-        - Since the x-values are sampled from sample_df, any correlation within the features not plotted on the
-          x-axis are preserved.
-        - The values of the target feature are observed within the group (of the six) being plotted, so extrapolation
-          into unobserved space is reduced. The
-
-    Returns a metric that rates the importance of the feature to the model (e.g. sloping). It is calculated as:
-
-    - Within each model output segment,
-        - calculate the median model output for each x value.
-        - Then calculate the range of these medians.
-    - We then have a range for each model output segment. Now find the maximum across the segments. This is the
-      impportance value.
-
-    :param model: A keras tf model with a 'predict' method that takes a tf dataset as input
-    :type model: tf.keras.Mode
-    :param features_target: features to generate plots for.
-    :type features_target: list of str
-    :param features_dict: dictionary whose keys are the features in the model
-    :type features_dict: dict
-    :param sample_df_in: DataFrame from which to take samples and calculate distributions
-    :type sample_df_in:  pandas DataFrame
-    :param plot_dir: directory to write plots out to
-    :type plot_dir: str
-    :param num_sample: number of samples to base box plots on
-    :type num_sample: int
-    :param cat_top: maximum number of levels of categorical variables to plot
-    :type cat_top: int
-    :param in_browser: if True, plot in browser
-    :type in_browser: bool
-    :param column: column or list of columns to use from keras model .predict
-    :type column: int or list of ints
-    :param title: optional additional title for graphs
-    :type title: str
-    :return: for each target, the range of the median across the target levels for each model output group
-    :rtype dict
-    """
-    
-    if plot_dir is not None:
-        if plot_dir[-1] != '/':
-            plot_dir += '/'
-    pio.renderers.default = 'browser'
-    
-    sample_df = sample_df_in.copy()
-    
-    sample_df['target'] = np.full(sample_df.shape[0], 0.0)
-    score_ds = get_tf_dataset(features_dict, 'target', sample_df, sample_df.shape[0], 1)
-    
-    # get and process the model output
-    sample_df['yh'] = get_pred(model.predict(score_ds), column)  # np.array(model.predict(score_ds)).flatten()
-    rangey = sample_df['yh'].quantile([.01, .99])
-    miny = float(rangey.iloc[0])
-    maxy = float(rangey.iloc[1])
-    target_qs = [0, .1, .25, .5, .75, .9, 1]
-    quantiles = sample_df['yh'].quantile(target_qs)
-    quantiles.iloc[0] -= 1.0
-    num_grp = quantiles.shape[0] - 1
-    # now we have the six groups that we will base the graphs on
-    sample_df['grp'] = pd.cut(sample_df['yh'], quantiles, labels=['grp' + str(j) for j in range(num_grp)], right=True)
-    
-    sub_titles = []
-    importance = {}
-    # reverse(ROYGBIV) but not super bright. See https://www.color-hex.com/
-    cols = ['#7d459c', '#2871a7', '#056916', '#dbac1a', '#dd7419', '#bd0d0d']
-
-    for j in range(num_grp):
-        sub_title = 'Model Output in {0} to {1}'.format(round(quantiles.iloc[j], 2), round(quantiles.iloc[j + 1], 2))
-        sub_title += '<br>'
-        sub_title += 'Quantile {0} to {1}'.format(target_qs[j], target_qs[j + 1])
-        sub_titles += [sub_title]
-    sub_titles += ['Place Holder']
-    
-    # go through the features
-    for target in features_target:
-        if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
-            sub_titles[6] = 'Box Plots'
-        else:
-            sub_titles[6] = 'Across Group<br>Distribution'
-        # the specs list gives some padding between the top of the plots and the overall title
-        fig = make_subplots(rows=2, cols=num_grp + 1, subplot_titles=sub_titles,
-                            row_heights=[1, .5],
-                            specs=[[{'t': 0.07, 'b': -.1}, {'t': 0.07, 'b': -.10}, {'t': 0.07, 'b': -.10},
-                                    {'t': 0.07, 'b': -.10}, {'t': 0.07, 'b': -.10}, {'t': 0.07, 'b': -.10},
-                                    {'t': 0.35, 'b': -0.35}],
-                                   [{'t': -0.07}, {'t': -.07}, {'t': -.07}, {'t': -0.07}, {'t': -.07},
-                                    {'t': -.07}, None]])
-        
-        median_ranges = []
-        all_cats = []
-        maxy2 = 0.0  # max of the bar charts (row 2) for cat features
-        
-        # go across the model output groups
-        for j in range(num_grp):
-            yhall = None  # this will be all the model outputs from the sample
-            
-            i = sample_df['grp'] == 'grp' + str(j)
-            if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
-                # Bucketize discrete cts features, within this model output group (MOG)
-                qs = sample_df.loc[i, target].quantile([.1, .2, .3, .4, .5, .6, .7, .8, .9]).unique()
-                nobs = qs.shape[0]
-                xval = np.array(qs).flatten()
-                xlab = 'Values at deciles within each model-value group'
-            else:
-                # Find the levels of the feature. Keep no more than the most frequent five.
-                cats = list(sample_df.loc[i][target].value_counts().sort_values(ascending=False).index)
-                if cat_top is None or len(cats) < cat_top:
-                    nobs = len(cats)
-                    xval = cats
-                else:
-                    nobs = cat_top
-                    xval = cats[0:nobs]
-                all_cats += xval
-                xlab = 'Top values by frequency within each model-value group'
-            # score_df is just the values of the feature we going to score
-            score_df = pd.DataFrame({target: xval})
-            
-            # pick a random sample within the model output group
-            vals = sample_df.loc[i].sample(num_sample, replace=True)
-            
-            # go across the number of samples to draw
-            for k in range(num_sample):
-                # generate a DataFrame that has a range of values for the target feature and
-                # the rest of the features are from one of our sample
-                # Now, load up the rest of the features moving through our random sample
-                for feature in features_dict.keys():
-                    if feature != target:
-                        xval = np.full(nobs, vals.iloc[k][feature])
-                        score_df[feature] = xval
-                # placeholder
-                score_df['target'] = np.full(nobs, 0.0)
-                score_ds = get_tf_dataset(features_dict, 'target', score_df, nobs, 1)
-                
-                # get model output
-                yh = get_pred(model.predict(score_ds), column)  # np.array(model.predict(score_ds)).flatten()
-                
-                # stack up the model outputs
-                if yhall is None:
-                    yhall = yh
-                    xall = np.array(score_df[target]).flatten()
-                else:
-                    yhall = np.append(yhall, yh)
-                    xall = np.append(xall, np.array(score_df[target]).flatten())
-            
-            # create grouped boxplots based on the values of the target feature
-            if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
-                xv = pd.DataFrame({'x': [str(round(x, 2)) for x in xall], 'yh': yhall})
-                fig.add_trace(go.Box(x=xv['x'], y=xv['yh'], marker=dict(color=cols[j])), row=1, col=j + 1)
-            else:
-                xv = pd.DataFrame({'x': [str(x) for x in xall], 'yh': yhall})
-                fig.add_trace(go.Box(x=xv['x'], y=xv['yh'], marker=dict(color=cols[j])), row=1, col=j + 1)
-            #            # give the figure a title
-            #            fig.update_annotations(sub_title='Group ' + str(j), row=1, col=j + 1)
-            #            fig.update_traces(name='grp ' + str(j), row=1, col=j + 1)
-            # for importance measure
-            medians = xv.groupby('x')['yh'].median()
-            median_ranges += [medians.max() - medians.min()]
-        # generate row 2 plots
-        if features_dict[target][0] != 'cts' and features_dict[target][0] != 'spl':
-            for j in range(num_grp):
-                i = sample_df['grp'] == 'grp' + str(j)
-                i1 = i & (sample_df.loc[i][target].isin(all_cats))
-                cts = sample_df.loc[i1][target].value_counts().sort_index()
-                probs = 100.0 * cts / i.sum()
-                if probs.max() > maxy2:
-                    maxy2 = probs.max()
-                fig.add_trace(go.Bar(x=probs.index, y=probs, marker=dict(color=cols[j])), row=2, col=j + 1)
-            for jj in range(num_grp):
-                fig['layout']['yaxis' + str(num_grp + 2 + jj)]['range'] = [0.0, maxy2]
-        else:
-            maxyr2 = 0.0
-            for j in range(num_grp):
-                i = sample_df['grp'] == 'grp' + str(j)
-                h = go.Histogram(x=sample_df.loc[i][target])
-                fig.add_trace(go.Histogram(x=sample_df.loc[i][target], marker=dict(color=cols[j]),
-                                           histnorm='probability density'),
-                              row=2, col=j + 1)
-                # this appears to be the only way to get the bin heights of the histogram -- the histogrm is built
-                # by javascript. All that's stored in the
-                ym = fig.full_figure_for_development(warn=False)['layout']['yaxis' + str(num_grp + 2 + j)]['range'][1]
-                if ym > maxyr2:
-                    maxyr2 = ym
-            xrng = sample_df[target].quantile([.01, .99])
-            xmin2 = float(xrng.iloc[0])
-            xmax2 = float(xrng.iloc[1])
-            xmin2 -= 0.01 * (xmax2 - xmin2)
-            xmax2 += 0.01 * (xmax2 - xmin2)
-            for j in range(num_grp):
-                fig['layout']['yaxis' + str(num_grp + 2 + j)]['range'] = [0, maxyr2]
-                fig['layout']['xaxis' + str(num_grp + 2 + j)]['range'] = [xmin2, xmax2]
-        ##
-        if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
-            for j, g in enumerate(['grp' + str(j) for j in range(num_grp)]):
-                i = sample_df['grp'] == g
-                if j == 0:
-                    nm = 'Lowest'
-                elif j == num_grp - 1:
-                    nm = 'Highest'
-                else:
-                    nm = 'G' + str(j)
-                fig.add_trace(go.Box(y=sample_df.loc[i][target], name=nm, marker=dict(color=cols[j]), ),
-                              row=1, col=num_grp + 1)
-            mm = sample_df[target].quantile([.01, .99])
-            minys = float(mm.iloc[0])
-            maxys = float(mm.iloc[1])
-            fig['layout']['yaxis' + str(num_grp + 1)]['range'] = [minys, maxys]
-        else:
-            cts = sample_df[target].value_counts().sort_values(ascending=False)
-            cat = cts.index
-            if cts.shape[0] > 5:
-                cat = cat[0:5]
-            for c in cat:
-                i = sample_df[target] == c
-                cts = sample_df.loc[i]['grp'].value_counts().sort_index()
-                probs = 100.0 * cts / cts.sum()
-                fig.add_trace(go.Bar(x=probs.index, y=probs, text=c, textposition='outside',
-                                     marker=dict(color=cols)),
-                              row=1, col=num_grp + 1)
-        
-        importance[target] = max(median_ranges)
-        # overall title
-        titl = ''
-        if title is not None:
-            titl = title + '<br>' + titl
-        titl += 'Marginal Response for ' + target
-        fig.update_layout(
-            title=dict(text=titl, font=dict(size=24), xanchor='center', xref='paper',
-                       x=0.5), showlegend=False)
-        # add label at bottom of graphs
-        fig.add_annotation(text=target, font=dict(size=16), x=0.5, xanchor='center', xref='paper', y=0,
-                           yanchor='top', yref='paper', yshift=-40, showarrow=False)
-        fig.add_annotation(text=xlab, font=dict(size=10), x=0.5, xanchor='center', xref='paper', y=0,
-                           yanchor='top', yref='paper', yshift=-60, showarrow=False)
-        fig.add_annotation(text='Within Group Distribution', font=dict(size=20), x=0.45, xanchor='center', xref='paper',
-                           y=.4, yanchor='top', yref='paper', yshift=-40, showarrow=False)
-        for jj in range(num_grp):
-            fig['layout']['yaxis' + str(jj + 1)]['range'] = [miny, maxy]
-        for jj in range(1, num_grp):
-            fig['layout']['yaxis' + str(jj + 1)]['showticklabels'] = False
-        fig['layout']['yaxis' + str(num_grp + 2 + jj)]['showticklabels'] = False
-        if in_browser:
-            fig.show()
-        if plot_dir is not None:
-            fname = plot_dir + 'html/' + target + '.html'
-            fig.write_html(fname)
-            
-            # needed for png to look decent
-            fig.update_layout(width=1800, height=1150)
-            fname = plot_dir + 'png/' + target + '.png'
-            fig.write_image(fname)
-    
-    imp_df = pd.DataFrame(importance, index=['max median range']).transpose()
-    imp_df = imp_df.sort_values('max median range', ascending=False)
-    return imp_df
-
-
 def _marginal_cts(model, column, features_dict, sample_df, target, num_grp, num_sample, title, sub_titles, cols):
     """
-
+    Build a Marginal Effects plot for a continuous feature
+    
     :param model: model
     :param column: column of model output
     :param features_dict: features in the model
@@ -595,6 +308,8 @@ def _marginal_cts(model, column, features_dict, sample_df, target, num_grp, num_
     """
     
     sub_titles[6] = 'Box Plots'
+    # 't' is top spacing, 'b' is bottom, 'None' means there is no graph in that cell. We make
+    # 2 x 7 -- eliminating the (2,7) graph and putting the RHS graph in the (1,7) position
     fig = make_subplots(rows=2, cols=num_grp + 1, subplot_titles=sub_titles,
                         row_heights=[1, .5],
                         specs=[[{'t': 0.07, 'b': -.1}, {'t': 0.07, 'b': -.10}, {'t': 0.07, 'b': -.10},
@@ -603,19 +318,28 @@ def _marginal_cts(model, column, features_dict, sample_df, target, num_grp, num_
                                [{'t': -0.07}, {'t': -.07}, {'t': -.07}, {'t': -0.07}, {'t': -.07},
                                 {'t': -.07}, None]])
     
+    # start with top row graphs
+    # find ranges by MOG and merge
     lows = sample_df.groupby('grp')[target].quantile(.01)
     highs = sample_df.groupby('grp')[target].quantile(.99)
     both = pd.merge(left=lows, right=highs, left_index=True, right_index=True)
     both.rename(columns={target + '_x': 'low', target + '_y': 'high'}, inplace=True)
+    
+    # repeat these to accomodate the range of the feature we're going to build next
     to_join = pd.concat([both] * 11).sort_index()
+    
+    # range of the feature
     xval = np.arange(11) / 10
     xval = np.concatenate([xval] * num_grp)
     to_join['steps'] = xval
     to_join[target] = to_join['low'] + (to_join['high'] - to_join['low']) * to_join['steps']
     
+    # now sample the DataFrame
     samps = sample_df.groupby('grp').sample(num_sample, replace=True)
     samps['samp_num'] = np.arange(samps.shape[0])
+    # drop the target column -- we're going to replace it with our grid of values
     samps.pop(target)
+    # join in our grid
     score_df = pd.merge(samps, to_join[target], on='grp')
     nobs = score_df.shape[0]
     score_df['target'] = np.full(nobs, 0.0)  # noop value
@@ -624,15 +348,17 @@ def _marginal_cts(model, column, features_dict, sample_df, target, num_grp, num_
     # get model output
     score_df['yh'] = get_pred(model.predict(score_ds), column)
     
+    # need to convert our feature values to string so rounding doesn't make graph look stupid
     xplot_name = target + '_str'
-    
     score_df[xplot_name] = np.round(score_df[target], 2).astype(str)
     
+    # add the boxplots. I don't see a way to do grouped boxplots in a single pass in a subplot.
     for j in range(num_grp):
         i = score_df['grp'] == 'grp' + str(j)
         fig.add_trace(go.Box(x=score_df.loc[i][xplot_name], y=score_df.loc[i]['yh'], marker=dict(color=cols[j])),
                       row=1, col=j + 1)
     
+    # now let's do bottom row
     maxyr2 = 0.0
     for j in range(num_grp):
         i = sample_df['grp'] == 'grp' + str(j)
@@ -644,7 +370,9 @@ def _marginal_cts(model, column, features_dict, sample_df, target, num_grp, num_
         ym = fig.full_figure_for_development(warn=False)['layout']['yaxis' + str(num_grp + 2 + j)]['range'][1]
         if ym > maxyr2:
             maxyr2 = ym
-    xlab = '(Values between 1%ile-99%ile within group)'
+    xlab = '(Top row values span 1%ile-99%ile within each model output group)'
+    
+    # set a common x range for the bottom row
     xrng = sample_df[target].quantile([0.01, 0.99])
     xmin2 = float(xrng.iloc[0])
     xmax2 = float(xrng.iloc[1])
@@ -654,6 +382,7 @@ def _marginal_cts(model, column, features_dict, sample_df, target, num_grp, num_
         fig['layout']['yaxis' + str(num_grp + 2 + j)]['range'] = [0, maxyr2]
         fig['layout']['xaxis' + str(num_grp + 2 + j)]['range'] = [xmin2, xmax2]
     
+    # Now do RHS graph
     for j, g in enumerate(['grp' + str(j) for j in range(num_grp)]):
         i = sample_df['grp'] == g
         if j == 0:
@@ -669,6 +398,7 @@ def _marginal_cts(model, column, features_dict, sample_df, target, num_grp, num_
     maxys = float(mm.iloc[1])
     fig['layout']['yaxis' + str(num_grp + 1)]['range'] = [minys, maxys]
     
+    # Make it pretty
     titl = ''
     if title is not None:
         titl = title + '<br>' + titl
@@ -689,7 +419,7 @@ def _marginal_cts(model, column, features_dict, sample_df, target, num_grp, num_
         fig['layout']['yaxis' + str(jj + 1)]['range'] = [miny, maxy]
     for jj in range(1, num_grp):
         fig['layout']['yaxis' + str(jj + 1)]['showticklabels'] = False
-    fig['layout']['yaxis' + str(num_grp + 2 + jj)]['showticklabels'] = False
+        fig['layout']['yaxis' + str(num_grp + 2 + jj)]['showticklabels'] = False
     
     meds = score_df.groupby(['grp', xplot_name], observed=True)['yh'].median()
     medr = meds.groupby('grp').max() - meds.groupby('grp').min()
@@ -700,6 +430,7 @@ def _marginal_cts(model, column, features_dict, sample_df, target, num_grp, num_
 
 def _marginal_cat(model, column, features_dict, sample_df, target, num_grp, num_sample, title, sub_titles, cols):
     """
+    Build a Marginal Effects plot for a categorical feature
 
     :param model: model
     :param column: column of model output
@@ -798,7 +529,7 @@ def _marginal_cat(model, column, features_dict, sample_df, target, num_grp, num_
         fig['layout']['yaxis' + str(jj + 1)]['range'] = [miny, maxy]
     for jj in range(1, num_grp):
         fig['layout']['yaxis' + str(jj + 1)]['showticklabels'] = False
-    fig['layout']['yaxis' + str(num_grp + 2 + jj)]['showticklabels'] = False
+        fig['layout']['yaxis' + str(num_grp + 2 + jj)]['showticklabels'] = False
     
     meds = score_df.groupby(['grp', xplot_name], observed=True)['yh'].median()
     medr = meds.groupby('grp').max() - meds.groupby('grp').min()
@@ -807,75 +538,8 @@ def _marginal_cat(model, column, features_dict, sample_df, target, num_grp, num_
     return fig, imp_within
 
 
-def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None, num_sample=100,
-             in_browser=False, column=None, title=None, slices=dict()):
-    """
-    Generate plots to illustrate the marginal effects of the model 'model'. Live plots are output to the default
-    browser and, optionally, png's are written to plot_dir
+def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None, num_sample=100, in_browser=False, column=None, title=None, slices=dict()):
 
-    The process is:
-
-    - The model output is found on sample_df:
-        - Six groups based on the quantiles [0, .1,. .25, .5, .75, .9, 1] are found from sample_df.
-    - for each feature in features:
-        - Six graphs are contructed: one for each group defined above.
-            - The graph covers
-            -  A random sample of size num_sample is taken from this group
-            -  The target feature value is replace by an array that has values of its
-               [0.01, .1, .2, .3, .4, .5, .6, .7, .8, 0.9, 0.99] quantiles in this group, if it is continuous or
-               is the top cat_top [None means all] most frequent levels if categorical
-            - The model output is found for all these
-            - Boxplots are formed.  These plots have a common y-axis with limits from the .01 to .99 quantile
-              of the model output on sample_df
-        - A seventh graph show the distribution of the feature across the six groups.
-            - For continuous features, these are box plots of the feature distribution *within* each model output group.
-            - For discrete features, these are histograms of each feature level *across* the model output groups.
-              These ARE NOT the feature distribution within each model group -- which is influenced the the
-              prevelance of feature levels (e.g. there are a lot of loans in CA). This latter info can be gleaned
-              from the first 6 plots since the feature levels are in descending order of prevelance within the
-              model group.
-
-    Features:
-        - Since the x-values are sampled from sample_df, any correlation within the features not plotted on the
-          x-axis are preserved.
-        - The values of the target feature are observed within the group (of the six) being plotted, so extrapolation
-          into unobserved space is reduced. The
-
-    Returns a metric that rates the importance of the feature to the model (e.g. sloping). It is calculated as:
-
-    - Within each model output segment,
-        - calculate the median model output for each x value.
-        - Then calculate the range of these medians.
-    - We then have a range for each model output segment. Now find the maximum across the segments. This is the
-      impportance value.
-
-    :param model: A keras tf model with a 'predict' method that takes a tf dataset as input
-    :type model: tf.keras.Mode
-    :param features_target: features to generate plots for.
-    :type features_target: list of str
-    :param features_dict: dictionary whose keys are the features in the model
-    :type features_dict: dict
-    :param sample_df_in: DataFrame from which to take samples and calculate distributions
-    :type sample_df_in:  pandas DataFrame
-    :param plot_dir: directory to write plots out to
-    :type plot_dir: str
-    :param num_sample: number of samples to base box plots on
-    :type num_sample: int
-    :param cat_top: maximum number of levels of categorical variables to plot
-    :type cat_top: int
-    :param in_browser: if True, plot in browser
-    :type in_browser: bool
-    :param column: column or list of columns to use from keras model .predict
-    :type column: int or list of ints
-    :param title: optional additional title for graphs
-    :type title: str
-    :param slices: optional slices of sample_df_in to also make graphs for. key to dict is name of slice, entry is
-                   boolean array for .loc access to sample_df_in
-    :type slices: dict
-    :return: for each target, the range of the median across the target levels for each model output group
-    :rtype dict
-    """
-    
     pio.renderers.default = 'browser'
     
     sample_df = sample_df_in.copy()
@@ -890,8 +554,9 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
     quantiles.iloc[0] -= 1.0
     num_grp = quantiles.shape[0] - 1
     # now we have the six groups that we will base the graphs on
-    sample_df['grp'] = pd.cut(sample_df['yh'], quantiles, labels=['grp' + str(j) for j in range(num_grp)], right=True)
     
+    sample_df['grp'] = pd.cut(sample_df['yh'], quantiles, labels=['grp' + str(j) for j in range(num_grp)], right=True)
+
     sub_titles = []
     importance = {}
     # reverse(ROYGBIV)
@@ -923,18 +588,18 @@ def marginal(model, features_target, features_dict, sample_df_in, plot_dir=None,
             if plot_dir is not None:
                 if plot_dir[-1] != '/':
                     plot_dir += '/'
-                pd = plot_dir + slice + '/'
-                os.makedirs(pd + 'html/', exist_ok=True)
-                os.makedirs(pd + 'png/', exist_ok=True)
+                pdir = plot_dir + slice + '/'
+                os.makedirs(pdir + 'html/', exist_ok=True)
+                os.makedirs(pdir + 'png/', exist_ok=True)
                 
-                fname = pd + 'html/Marginal_'  + target + '.html'
+                fname = pdir + 'html/Marginal_'  + target + '.html'
                 fig.write_html(fname)
                 
                 # needed for png to look decent
                 fig.update_layout(width=1800, height=1150)
-                fname = pd + 'png/Marginal_' + target + '.png'
+                fname = pdir + 'png/Marginal_' + target + '.png'
                 fig.write_image(fname)
-    
+
     imp_df = pd.DataFrame(importance, index=['importance']).transpose()
     imp_df = imp_df.sort_values('importance', ascending=False)
     return imp_df
