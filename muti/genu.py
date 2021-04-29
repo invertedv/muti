@@ -166,7 +166,7 @@ def cont_hist(yh, y, title='2D Contour Histogram', xlab='Model Output', ylab='Y'
 
 
 def ks_calculate(score_variable, binary_variable, plot=False, xlab='Score', ylab='CDF', title='KS Plot',
-                 subtitle=None, plot_dir=None, out_file=None, in_browser=True):
+                 subtitle=None, plot_dir=None, out_file=None, in_browser=False):
     """
     Calculates the KS (Kolmogorov Smirnov) distance between two cdfs.  The KS statistic is 100 times the
     maximum vertical difference between the two cdfs
@@ -262,7 +262,7 @@ def ks_calculate(score_variable, binary_variable, plot=False, xlab='Score', ylab
 
 def decile_plot(score_variable, binary_variable, xlab='Score', ylab='Actual', title='Decile Plot',
                 plot_maximum=None, plot_minimum=None, confidence_level=0.95, correlation=0, subtitle=None,
-                plot_dir=None, out_file=None, in_browser=True):
+                plot_dir=None, out_file=None, in_browser=False):
     """
     This function creates the so-called decile plot.  The input data (score_variable, binary_variable) is
     divided into 10 equal groups based on the deciles of score_variable.  Within each decile, the values of the
@@ -709,8 +709,9 @@ def boot_mean(y_in, num_samples, coverage=0.95):
     return list(ci_boot['means'])
 
 
-def fit1(feature, feature_type, y_name, yh_name, sample_df, num_quantiles, boot_samples, boot_coverage, extra_title):
+def fit1(feature, feature_type, y, yh, sample_df, num_quantiles, boot_samples, boot_coverage, extra_title):
     if feature_type == 'cts' or feature_type == 'spl':
+        feature_grp = feature + '_grp'
         us = np.arange(num_quantiles + 1) / num_quantiles
         quantiles = sample_df[feature].quantile(us).unique()
         quantiles[0] -= 1.0
@@ -722,21 +723,23 @@ def fit1(feature, feature_type, y_name, yh_name, sample_df, num_quantiles, boot_
         quantiles = np.round(quantiles, decimals + 1)
         if decimals < 0:
             quantiles = quantiles.astype(int)
-        sample_df[feature] = pd.cut(sample_df[feature], quantiles,
-                                    labels=[feature + ' ' + str(quantiles[j + 1]) for j in
-                                            range(quantiles.shape[0] - 1)], right=True)
+        feature_grp = pd.cut(sample_df[feature], quantiles,
+                             labels=[feature + ' ' + str(quantiles[j + 1]) for j in
+                                     range(quantiles.shape[0] - 1)], right=True)
+    else:
+        feature_grp = sample_df[feature]
     
-    co = sample_df.groupby(feature)[[y_name, yh_name]].mean()
-    fig1 = [go.Scatter(x=co[yh_name], y=co[y_name], mode='markers', name='',
+    co = sample_df.groupby(feature_grp)[[y, yh]].mean()
+    fig1 = [go.Scatter(x=co[yh], y=co[y], mode='markers', name='',
                        customdata=co.index, marker=dict(color='black'),
                        hovertemplate='%{customdata}<br>Model %{x}<br>Actual %{y}')]
     for indx in co.index:
-        i = sample_df[feature] == indx
-        ci = boot_mean(sample_df.loc[i][y_name], boot_samples, coverage=boot_coverage)
-        x = [co.loc[indx][yh_name], co.loc[indx][yh_name]]
+        i = feature_grp == indx
+        ci = boot_mean(sample_df.loc[i][y], boot_samples, coverage=boot_coverage)
+        x = [co.loc[indx][yh], co.loc[indx][yh]]
         fig1 += [go.Scatter(x=x, y=ci, mode='lines', line=dict(color='black'), name='')]
-    minv = min([co[y_name].min(), co[yh_name].min()])
-    maxv = max([co[y_name].max(), co[yh_name].max()])
+    minv = min([co[y].min(), co[yh].min()])
+    maxv = max([co[y].max(), co[yh].max()])
     fig1 += [go.Scatter(x=[minv, maxv], y=[minv, maxv], mode='lines', line=dict(color='red'), name='')]
     title = 'Model vs Actual Grouped by ' + feature
     if extra_title is not None:
@@ -744,7 +747,7 @@ def fit1(feature, feature_type, y_name, yh_name, sample_df, num_quantiles, boot_
     layout1 = go.Layout(title=dict(text=title, x=0.5, xref='paper',
                                    font=dict(size=24)),
                         xaxis=dict(title='Model Output'),
-                        yaxis=dict(title=y_name),
+                        yaxis=dict(title=y),
                         height=800,
                         width=800,
                         showlegend=False)
@@ -755,7 +758,7 @@ def fit1(feature, feature_type, y_name, yh_name, sample_df, num_quantiles, boot_
     return figx1
 
 
-def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles=10,
+def fit_by_feature(features, targets, sample_df, plot_dir=None, num_quantiles=10,
                    boot_samples=1000, boot_coverage=0.95, in_browser=False, plot_ks=False,
                    slices=dict()):
     """
@@ -768,8 +771,8 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
     :type features: dict
     :param targets: dict with keys 'model_output' and 'target' that point to columns in sample_df_in
     :type targets dict
-    :param sample_df_in: DataFrame from which to take samples and calculate distributions
-    :type sample_df_in: pandas DataFrame
+    :param sample_df: DataFrame from which to take samples and calculate distributions
+    :type sample_df: pandas DataFrame
     :param plot_dir: directory to write plots out to
     :type plot_dir: str
     :param num_quantiles: number of quantiles at which to discretize continuous variables
@@ -797,14 +800,13 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
     y_name = targets['target']
     yh_name = targets['model_output']
     
-    slices['Overall'] = np.full(sample_df_in.shape[0], True)
+    slices['Overall'] = np.full(sample_df.shape[0], True)
     for feature in features.keys():
         for slice in slices.keys():
             i = slices[slice]
-            sample_df = sample_df_in.loc[i].copy()
             et = 'Slice: ' + slice
             
-            figx1 = fit1(feature, features[feature][0], y_name, yh_name, sample_df,
+            figx1 = fit1(feature, features[feature][0], y_name, yh_name, sample_df.loc[i],
                          num_quantiles, boot_samples, boot_coverage, et)
             if in_browser:
                 figx1.show()
@@ -816,5 +818,5 @@ def fit_by_feature(features, targets, sample_df_in, plot_dir=None, num_quantiles
                 figx1.write_html(fname)
             if plot_ks:
                 ks_calculate(sample_df[yh_name], sample_df[y_name], plot=True, title=et,
-                                  plot_dir=plot_dir, out_file='KS_' + slice)
+                                  plot_dir=plot_dir, out_file='KS_' + slice, in_browser=in_browser)
 
