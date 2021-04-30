@@ -58,7 +58,7 @@ def get_unique_levels(feature, client, db, table, cnt_min=None):
     return u, most_freq_level
 
 
-def get_closest(ul, field, target, db, table, client):
+def get_closest(ul, field, target, db, table, client, print_details=False):
     """
     This function is designed to select the out-of-list default value for an embedding. It selects this value
     as the in-list value which has target mean closest to the average value of all out-of-list values
@@ -75,6 +75,7 @@ def get_closest(ul, field, target, db, table, client):
     :type table: str
     :param client: clickhouse client
     :type client: clickhouse_driver.client
+    :param print_details: if True, prints info about the outcome
     :return: value of in-list elements with average closest to out-of-list averages
     """
     qry = """
@@ -114,9 +115,10 @@ def get_closest(ul, field, target, db, table, client):
     df = chu.run_query(qry, client, return_df=True,
                        replace_source=['TTTT', 'XXXX', 'YYYY', 'ZZZZ'],
                        replace_dest=[repl, field, target, db + '.' + table])
-    print('Out-of-list element selection for field {0} using target {1}'.format(field, target))
-    print(df)
-    print('\n')
+    if print_details:
+        print('Out-of-list element selection for field {0} using target {1}'.format(field, target))
+        print(df)
+        print('\n')
     return df.iloc[0]['grp']
 
 

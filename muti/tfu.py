@@ -59,7 +59,7 @@ def plot_history(history, groups=['loss'], metric='loss', first_epoch=0, title=N
     fig = []
     for g in groups:
         x = np.arange(first_epoch, len(history.history[g]) - first_epoch)
-        y = history.history[g][first_epoch:len(history.history[metric])]
+        y = history[g][first_epoch:len(history.history[metric])]
         fig += [go.Scatter(x=x, y=y, name=g)]
     if title is None:
         title = 'TensorFlow Model Build<br>' + metric
@@ -77,7 +77,7 @@ def plot_history(history, groups=['loss'], metric='loss', first_epoch=0, title=N
         figx.write_html(plot_file)
 
 
-def build_column(feature_name, feature_params, out_path=None):
+def build_column(feature_name, feature_params, out_path=None, print_details=False):
     """
     Returns a tensorflow feature columns and, optionally, the vocabulary for categorical and
     embedded features. Optionally creates files of the vocabularies for use in TensorBoard.
@@ -92,11 +92,13 @@ def build_column(feature_name, feature_params, out_path=None):
     :type feature_params: list
     :param out_path: path to write files containing levels of 'cat' and 'emb' variables
     :type out_path: str
+    :param print_details: print info about each feature
     :return: tf feature column and (for 'cat' and 'emb') a list of levels (vocabulary)
     """
     
     if feature_params[0] == 'cts' or feature_params[0] == 'spl':
-        print('col {0} is numeric'.format(feature_name))
+        if print_details:
+            print('col {0} is numeric'.format(feature_name))
         return tf.feature_column.numeric_column(feature_name)
     # categorical and embedded features
     if feature_params[0] in ['cat', 'emb']:
@@ -120,14 +122,16 @@ def build_column(feature_name, feature_params, out_path=None):
         # go with 1-hot encoding
         if feature_params[0] == 'cat':
             col_ind = tf.feature_column.indicator_column(col_cat)
-            print('col {0} is categorical with {1} levels'.format(feature_name, len(vocab)))
+            if print_details:
+                print('col {0} is categorical with {1} levels'.format(feature_name, len(vocab)))
             return col_ind
       
         # for embedded features, the third element of feature_params input is the dimension of the
         # embedding
         levels = feature_params[3]
         col_emb = tf.feature_column.embedding_column(col_cat, levels)
-        print('col {0} is embedded with {1} levels'.format(feature_name, levels))
+        if print_details:
+            print('col {0} is embedded with {1} levels'.format(feature_name, levels))
         return col_emb
 
 
