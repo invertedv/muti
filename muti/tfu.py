@@ -58,8 +58,8 @@ def plot_history(history, groups=['loss'], metric='loss', first_epoch=0, title=N
     os.makedirs(plot_dir, exist_ok=True)
     fig = []
     for g in groups:
-        x = np.arange(first_epoch, len(history.history[g]) - first_epoch)
-        y = history[g][first_epoch:len(history.history[metric])]
+        x = np.arange(first_epoch, len(history[g]) - first_epoch)
+        y = history[g][first_epoch:len(history[metric])]
         fig += [go.Scatter(x=x, y=y, name=g)]
     if title is None:
         title = 'TensorFlow Model Build<br>' + metric
@@ -672,31 +672,33 @@ def marginal(model, features_target, features_dict, sample_df, model_col, plot_d
         # run through the slices
         for slice in slices.keys():
             i = slices[slice]
-            title_aug = title + '<br>Slice: ' + slice
-            if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
-                fig, imp_in = _marginal_cts(model, column, features_dict, sample_df.loc[i], target, num_grp, num_sample, title_aug,
-                                            sub_titles, cols)
+            if i.sum() > 100:
+                title_aug = title + '<br>Slice: ' + slice
+                if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
+                    fig, imp_in = _marginal_cts(model, column, features_dict, sample_df.loc[i], target, num_grp, num_sample, title_aug,
+                                                sub_titles, cols)
+                else:
+                    fig, imp_in = _marginal_cat(model, column, features_dict, sample_df.loc[i], target, num_grp, num_sample, title_aug,
+                                                sub_titles, cols)
+                importance[target + '_' + slice] = imp_in
+                if in_browser:
+                    fig.show()
+                if plot_dir is not None:
+                    if plot_dir[-1] != '/':
+                        plot_dir += '/'
+                    pdir = plot_dir + slice + '/'
+                    os.makedirs(pdir + 'html/', exist_ok=True)
+                    os.makedirs(pdir + 'png/', exist_ok=True)
+                    
+                    fname = pdir + 'html/Marginal_'  + target + '.html'
+                    fig.write_html(fname)
+                    
+                    # needed for png to look decent
+                    fig.update_layout(width=1800, height=1150)
+                    fname = pdir + 'png/Marginal_' + target + '.png'
+                    fig.write_image(fname)
             else:
-                fig, imp_in = _marginal_cat(model, column, features_dict, sample_df.loc[i], target, num_grp, num_sample, title_aug,
-                                            sub_titles, cols)
-            importance[target + '_' + slice] = imp_in
-            if in_browser:
-                fig.show()
-            if plot_dir is not None:
-                if plot_dir[-1] != '/':
-                    plot_dir += '/'
-                pdir = plot_dir + slice + '/'
-                os.makedirs(pdir + 'html/', exist_ok=True)
-                os.makedirs(pdir + 'png/', exist_ok=True)
-                
-                fname = pdir + 'html/Marginal_'  + target + '.html'
-                fig.write_html(fname)
-                
-                # needed for png to look decent
-                fig.update_layout(width=1800, height=1150)
-                fname = pdir + 'png/Marginal_' + target + '.png'
-                fig.write_image(fname)
-            gc.collect()
+                print('No marginal graph for {0} and slice {1}'.format(target, slice))
 
     imp_df = pd.DataFrame(importance, index=['importance']).transpose()
     imp_df = imp_df.sort_values('importance', ascending=False)
