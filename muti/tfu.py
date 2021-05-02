@@ -672,7 +672,7 @@ def marginal(model, features_target, features_dict, sample_df, model_col, plot_d
         # run through the slices
         for slice in slices.keys():
             i = slices[slice]
-            if i.sum() > 100:
+            if (sample_df.loc[i].groupby('grp').count().min()).iloc[0] > 100:
                 title_aug = title + '<br>Slice: ' + slice
                 if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
                     fig, imp_in = _marginal_cts(model, column, features_dict, sample_df.loc[i], target, num_grp, num_sample, title_aug,
