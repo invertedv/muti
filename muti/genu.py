@@ -559,7 +559,7 @@ def feature_fit_plot(feature, feature_type, y_name, yh_name, sample_df, num_quan
                         width=800,
                         showlegend=False)
     figx1 = go.Figure(fig1, layout=layout1)
-    xlab = 'Bootstrap CI at {0:.0f}% coverage'.format(100 * coverage)
+    xlab = 'CI at {0:.0f}% coverage'.format(100 * coverage)
     figx1.add_annotation(text=xlab, font=dict(size=10), x=0.5, xanchor='center', xref='paper', y=0,
                          yanchor='top', yref='paper', yshift=-50, showarrow=False)
     return figx1
