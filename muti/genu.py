@@ -624,8 +624,7 @@ def fit_by_feature(features, targets, sample_df, plot_dir=None, num_quantiles=10
                 
                 fname = pdir + 'html/ModelFit_' + feature + '.html'
                 figx1.write_html(fname)
-            if plot_ks:
-                ks_calculate(sample_df[yh_name], sample_df[y_name], plot=True, title=et,
-                             plot_dir=pdir, out_file='KS_' + slice, in_browser=in_browser)
-        gc.collect()
+                if plot_ks:
+                    ks_calculate(sample_df.loc[i][yh_name], sample_df.loc[i][y_name], plot=True, title=et,
+                                 plot_dir=pdir, out_file='KS', in_browser=in_browser)
 

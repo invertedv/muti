@@ -418,8 +418,8 @@ def _marginal_cts(model, column, features_dict, sample_df, target, num_grp, num_
                        yanchor='top', yref='paper', yshift=-60, showarrow=False)
     fig.add_annotation(text='Within Group Distribution', font=dict(size=20), x=0.45, xanchor='center', xref='paper',
                        y=.4, yanchor='top', yref='paper', yshift=-40, showarrow=False)
-    maxy = score_df['yh'].max()
-    miny = score_df['yh'].min()
+    maxy = score_df['yh'].quantile(.99)
+    miny = score_df['yh'].quantile(.01)
     for jj in range(num_grp):
         fig['layout']['yaxis' + str(jj + 1)]['range'] = [miny, maxy]
     for jj in range(1, num_grp):
@@ -546,8 +546,8 @@ def _marginal_cat(model, column, features_dict, sample_df, target, num_grp, num_
                        yanchor='top', yref='paper', yshift=-60, showarrow=False)
     fig.add_annotation(text='Within Group Distribution', font=dict(size=20), x=0.45, xanchor='center', xref='paper',
                        y=.4, yanchor='top', yref='paper', yshift=-40, showarrow=False)
-    maxy = score_df['yh'].max()
-    miny = score_df['yh'].min()
+    maxy = score_df['yh'].quantile(0.99)
+    miny = score_df['yh'].quantile(0.01)
     for jj in range(num_grp):
         fig['layout']['yaxis' + str(jj + 1)]['range'] = [miny, maxy]
     for jj in range(1, num_grp):
