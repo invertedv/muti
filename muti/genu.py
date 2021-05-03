@@ -58,7 +58,7 @@ def get_unique_levels(feature, client, db, table, cnt_min=None):
     return u, most_freq_level
 
 
-def get_closest(ul, field, target, db, table, client, print_details=False):
+def get_closest(ul, field, target, db, table, client, print_details=True):
     """
     This function is designed to select the out-of-list default value for an embedding. It selects this value
     as the in-list value which has target mean closest to the average value of all out-of-list values

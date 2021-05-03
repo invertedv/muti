@@ -77,7 +77,7 @@ def plot_history(history, groups=['loss'], metric='loss', first_epoch=0, title=N
         figx.write_html(plot_file)
 
 
-def build_column(feature_name, feature_params, out_path=None, print_details=False):
+def build_column(feature_name, feature_params, out_path=None, print_details=True):
     """
     Returns a tensorflow feature columns and, optionally, the vocabulary for categorical and
     embedded features. Optionally creates files of the vocabularies for use in TensorBoard.
@@ -135,7 +135,7 @@ def build_column(feature_name, feature_params, out_path=None, print_details=Fals
         return col_emb
 
 
-def build_model_cols(feature_dict, out_vocab_dir=None):
+def build_model_cols(feature_dict, out_vocab_dir=None, print_details=True):
     """
     Builds inputs needed to specify a tf.keras.Model. The tf_cols_* are TensorFlow feature_columns. The
     inputs_* are dictionaries of tf.keras.Inputs.  The tf_cols_* are used to specify keras.DenseFeatures methods and
@@ -161,11 +161,11 @@ def build_model_cols(feature_dict, out_vocab_dir=None):
     inputs_cat = {}
     for feature in feature_dict.keys():
         if feature_dict[feature][0] == 'cts' or feature_dict[feature][0] == 'spl':
-            feat = build_column(feature, feature_dict[feature])
+            feat = build_column(feature, feature_dict[feature], print_details=print_details)
             tf_cols_cts += [feat]
             inputs_cts[feature] = tf.keras.Input(shape=(1,), name=feature)
         else:
-            feat = build_column(feature, feature_dict[feature], out_vocab_dir)
+            feat = build_column(feature, feature_dict[feature], out_vocab_dir, print_details=print_details)
             tf_cols_cat += [feat]
             inputs_cat[feature] = tf.keras.Input(shape=(1,), name=feature, dtype=tf.string)
     return tf_cols_cts, inputs_cts, tf_cols_cat, inputs_cat
