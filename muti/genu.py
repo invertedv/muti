@@ -90,9 +90,9 @@ def get_closest(ul, field, target, db, table, client, print_details=True):
          */
         SELECT
           XXXX AS grp,
-          avg(arrayAvg(YYYY)) AS in_avg,
+          avg(YYYY) AS in_avg,
           (SELECT
-            avg(arrayAvg(YYYY))
+            avg(YYYY)
           FROM
               ZZZZ
           WHERE
