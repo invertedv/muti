@@ -2,8 +2,6 @@
 Utilities that help with the building of tensorflow keras models
 
 """
-import gc
-
 import tensorflow as tf
 import os
 import numpy as np
@@ -13,6 +11,26 @@ import plotly.io as pio
 from plotly.subplots import make_subplots
 import warnings
 
+
+def polynomial_decay_learning_rate(step: int, learning_rate_start: float, learning_rate_final: float,
+                                   decay_steps: int, power: float):
+    """
+    Manual implementation of polynomial decay for learning rate
+    
+    :param step: which step we're on
+    :param learning_rate_start: learning rate for epoch 0
+    :param learning_rate_final: learning rate for epoch decay_steps
+    :param decay_steps: epoch at which learning rate stops changing
+    :param power: exponent
+    :return:
+    """
+    if step <= decay_steps:
+        delta = float(learning_rate_start - learning_rate_final)
+        lr = delta * (1.0 - float(step) / float(decay_steps)) ** power + learning_rate_final
+        return lr
+    return learning_rate_final
+
+
 def get_pred(yh, column=None, wts=None):
     """
     Returns an array of predicted values from a keras predict method. If column is None, then this
@@ -21,13 +39,10 @@ def get_pred(yh, column=None, wts=None):
     If column is a list of int, it returns the column sums
 
     :param yh: keras model prediction
-    :type yh: keras.model.predict() output
-    :param column: which column(s) to return
-    :type column: int or list of int
-    :param wts: array of weights. if yh is n x p, wts has length p
-    :type wts:: nd.array
+    :param column: which column(s) to return, int or list of int
+    :param wts: array of weights. if yh is n x p, wts has length p. nd.array if specified
     :return: prediction array
-    :rtype ndarray
+    :rtype nd.array
     """
     if wts is not None:
         yh = yh * wts
@@ -39,23 +54,16 @@ def get_pred(yh, column=None, wts=None):
     return np.sum(yh[:, column], axis=1)
 
 
-def plot_history(history, groups=['loss'], metric='loss', first_epoch=0, title=None, plot_dir=None, in_browser=False):
+def plot_history(history: dict, groups=['loss'], metric='loss', first_epoch=0, title=None, plot_dir=None, in_browser=False):
     """
     plot the history of metrics from a keras model tf build
     :param history: history returned from keras fit
-    :type history: tf.keras.History class
     :param groups: groups to plot
-    :type groups: list
     :param metric: metric to plot
-    :type metric: str
     :param first_epoch: first element to plot
-    :type first_epoch: int
     :param title: title for plot
-    :type title: str
     :param plot_dir: directory to plot to
-    :type plot_dir: str
     :param in_browser: if True display in browser
-    :type in_browser: bool
     :return:
     """
     pio.renderers.default = 'browser'
@@ -81,21 +89,18 @@ def plot_history(history, groups=['loss'], metric='loss', first_epoch=0, title=N
         figx.write_html(plot_file)
 
 
-def build_column(feature_name, feature_params, out_path=None, print_details=True):
+def build_column(feature_name: str, feature_params: list, out_path=None, print_details=True):
     """
     Returns a tensorflow feature columns and, optionally, the vocabulary for categorical and
     embedded features. Optionally creates files of the vocabularies for use in TensorBoard.
   
     :param feature_name: name of the feature
-    :type feature_name: str
     :param feature_params:
         Element 0: type of feature ('cts'/'spl', 'cat', 'emb').
         Element 1: ('cat', 'emb') vocabulary list (list of levels)
         Element 2: ('cat', 'emb') default index. If None, 0 is used
         Element 3: ('emb') embedding dimension
-    :type feature_params: list
     :param out_path: path to write files containing levels of 'cat' and 'emb' variables
-    :type out_path: str
     :param print_details: print info about each feature
     :return: tf feature column and (for 'cat' and 'emb') a list of levels (vocabulary)
     """
@@ -139,7 +144,7 @@ def build_column(feature_name, feature_params, out_path=None, print_details=True
         return col_emb
 
 
-def build_model_cols(feature_dict, out_vocab_dir=None, print_details=True):
+def build_model_cols(feature_dict: dict, out_vocab_dir=None, print_details=True):
     """
     Builds inputs needed to specify a tf.keras.Model. The tf_cols_* are TensorFlow feature_columns. The
     inputs_* are dictionaries of tf.keras.Inputs.  The tf_cols_* are used to specify keras.DenseFeatures methods and
@@ -175,7 +180,7 @@ def build_model_cols(feature_dict, out_vocab_dir=None, print_details=True):
     return tf_cols_cts, inputs_cts, tf_cols_cat, inputs_cat
 
 
-def get_tf_dataset(feature_dict, target, df, batch_size, repeats=None):
+def get_tf_dataset(feature_dict: dict, target: str, df: pd.DataFrame, batch_size: int, repeats=None):
     """
     build a tf dataset from a pandas DataFrame
     
@@ -299,12 +304,14 @@ def incr_build(model,  by_var, start_list, add_list, get_data_fn, sample_size, f
     return segs, global_valid_df
 
 
-def _marginal_cts(model, column, features_dict, sample_df, target, num_grp, num_sample, title, sub_titles, cols):
+def _marginal_cts(model: tf.keras.Model, column, features_dict: dict, sample_df: pd.DataFrame,
+                  target: str, num_grp: int, num_sample: int, title: str,
+                  sub_titles: str, cols: list):
     """
     Build a Marginal Effects plot for a continuous feature
     
     :param model: model
-    :param column: column of model output
+    :param column: column(s) of model output, either an int or list of ints
     :param features_dict: features in the model
     :param sample_df: DataFrame operating on
     :param target: target feature
@@ -312,7 +319,7 @@ def _marginal_cts(model, column, features_dict, sample_df, target, num_grp, num_
     :param num_sample: # of obs to take from sample_df to build graph
     :param title: title for graph
     :param sub_titles: titles for subplots
-    :param cols: colors
+    :param cols: colors to use: list of str
     :return: plotly_fig and importance metric
     """
     
@@ -437,7 +444,8 @@ def _marginal_cts(model, column, features_dict, sample_df, target, num_grp, num_
     return fig, imp_within
 
 
-def _marginal_cat(model, column, features_dict, sample_df, target, num_grp, num_sample, title, sub_titles, cols):
+def _marginal_cat(model: tf.keras.Model, column, features_dict: dict, sample_df: pd.DataFrame, target: str,
+                  num_grp: int, num_sample: int, title: str, sub_titles: str, cols: list):
     """
     Build a Marginal Effects plot for a categorical feature
 
@@ -450,7 +458,7 @@ def _marginal_cat(model, column, features_dict, sample_df, target, num_grp, num_
     :param num_sample: # of obs to take from sample_df to build graph
     :param title: title for graph
     :param sub_titles: titles for subplots -- must be 7 long
-    :param cols: colors
+    :param cols: colors (list of str)
     :return: plotly_fig and importance metric
     """
 
@@ -566,7 +574,8 @@ def _marginal_cat(model, column, features_dict, sample_df, target, num_grp, num_
     return fig, imp_within
 
 
-def marginal(model, features_target, features_dict, sample_df, model_col, plot_dir=None, num_sample=100, in_browser=False, column=None, title=None, slices=dict()):
+def marginal(model: tf.keras.Model, features_target: dict, features_dict: dict, sample_df: pd.DataFrame,
+             model_col: str, plot_dir=None, num_sample=100, in_browser=False, column=None, title=None, slices=dict()):
     """
     Generate plots to illustrate the marginal effects of the model 'model'. Live plots are output to the default
     browser and, optionally, png's are written to plot_dir
@@ -618,30 +627,18 @@ def marginal(model, features_target, features_dict, sample_df, model_col, plot_d
     Currently the MOG groups are defined once -- not separately for each slice
 
     :param model: A keras tf model with a 'predict' method that takes a tf dataset as input
-    :type model: tf.keras.Mode
     :param features_target: features to generate plots for.
-    :type features_target: list of str
     :param features_dict: dictionary whose keys are the features in the model
-    :type features_dict: dict
     :param sample_df_in: DataFrame from which to take samples and calculate distributions
-    :type sample_df_in:  pandas DataFrame
     :param model_col: name of model output in sample_df
-    :type model_col: str
     :param plot_dir: directory to write plots out to
-    :type plot_dir: str
     :param num_sample: number of samples to base box plots on
-    :type num_sample: int
     :param cat_top: maximum number of levels of categorical variables to plot
-    :type cat_top: int
     :param in_browser: if True, plot in browser
-    :type in_browser: bool
     :param column: column or list of columns to use from keras model .predict
-    :type column: int or list of ints
     :param title: optional additional title for graphs
-    :type title: str
     :param slices: optional slices of sample_df_in to also make graphs for. key to dict is name of slice, entry is
                    boolean array for .loc access to sample_df_in
-    :type slices: dict
     :return: for each target, the range of the median across the target levels for each model output group
     :rtype dict
     """

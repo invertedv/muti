@@ -2,7 +2,8 @@
 utilities that are helpful in general model building
 
 """
-from muti import chu, tfu
+import clickhouse_driver
+from muti import chu
 import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
@@ -10,16 +11,14 @@ import plotly.io as pio
 import scipy.stats as stats
 import math
 import os
-import gc
+
 
 def r_square(yh, y):
     """
     find the r-square for the model implied by yh
     
-    :param yh: model output
-    :type yh: pd.Series or nd.array
-    :param y: actual values
-    :type y: pd.Series or nd.array
+    :param yh: model output -- either pd.Series or nd.array
+    :param y: actual values, same type as yh
     :return: r-squared
     :rtype float
     """
@@ -29,21 +28,16 @@ def r_square(yh, y):
     return float(r2)
 
 
-def get_unique_levels(feature, client, db, table, cnt_min=None):
+def get_unique_levels(feature: str, client: clickhouse_driver.Client, db: str, table: str, cnt_min=None):
     """
     Retrieves the unique levels of the column 'feature' in the table 'table' of database db.
     At most 1000 are returned.
 
     :param feature: column name in db.table to get unique levels
-    :type feature: str
     :param client: clickhouse client connector
-    :type client: clickhouse_driver.Client
     :param db: database name
-    :type db: str
     :param table: table name
-    :type table: str
     :param cnt_min: minimum count for a level to be returned
-    :type cnt_min: int
     :return: list of unique levels and the most frequent level
     :rtype list, <value>
     """
@@ -58,23 +52,18 @@ def get_unique_levels(feature, client, db, table, cnt_min=None):
     return u, most_freq_level
 
 
-def get_closest(ul, field, target, db, table, client, print_details=True):
+def get_closest(ul: list, field: str, target: str, db: str, table: str,
+                client: clickhouse_driver.Client, print_details=True):
     """
     This function is designed to select the out-of-list default value for an embedding. It selects this value
     as the in-list value which has target mean closest to the average value of all out-of-list values
     
     :param ul: in-list values
-    :type ul: list
     :param field: name of field we're working on
-    :type field: str
     :param target: target field used for assessing 'close'
-    :type target: str
     :param db: database to use
-    :type db: str
     :param table: table to use
-    :type table: str
     :param client: clickhouse client
-    :type client: clickhouse_driver.client
     :param print_details: if True, prints info about the outcome
     :return: value of in-list elements with average closest to out-of-list averages
     """
@@ -128,22 +117,14 @@ def cont_hist(yh, y, title='2D Contour Histogram', xlab='Model Output', ylab='Y'
     Make a 2D contour histogram plot of y vs yh.
     The plot is produced in the browser and optionally written to a file.
     
-    :param yh: Model outputs
-    :type yh: nd.array or pd.Series
-    :param y: Target value
-    :type y: nd.array or pd.Series
+    :param yh: Model outputs -- nd.array or pd.Series
+    :param y: Target value, same type as yh
     :param title: Title for plot
-    :type title: str
     :param xlab: x-axis label
-    :type xlab: str
     :param ylab: y-axis label
-    :type ylab: str
     :param subtitle: optional subtitle
-    :type subtitle: str
     :param plot_dir: optional file to write graph to
-    :type plot_dir: str
     :param in_browser: if True plot to browser
-    :type in_browser: bool
     :return:
     """
     
@@ -167,8 +148,8 @@ def cont_hist(yh, y, title='2D Contour Histogram', xlab='Model Output', ylab='Y'
         figx.write_html(plot_dir + 'html/model_fit.html')
 
 
-def ks_calculate(score_variable, binary_variable, plot=False, xlab='Score', ylab='CDF', title='KS Plot',
-                 subtitle=None, plot_dir=None, out_file=None, in_browser=False):
+def ks_calculate(score_variable: pd.Series, binary_variable: pd.Series, plot=False, xlab='Score', ylab='CDF',
+                 title='KS Plot', subtitle=None, plot_dir=None, out_file=None, in_browser=False):
     """
     Calculates the KS (Kolmogorov Smirnov) distance between two cdfs.  The KS statistic is 100 times the
     maximum vertical difference between the two cdfs
@@ -179,25 +160,15 @@ def ks_calculate(score_variable, binary_variable, plot=False, xlab='Score', ylab
     Optionally, the plot of the CDF of score variable for the two values of binary_variable may be plotted.
 
     :param score_variable: continuous variable from the logistic regression
-    :type score_variable: pandas series, numpy array or numpy vector
     :param binary_variable: binary outcome (dependent) variable from the logistic regression
-    :type binary_variable: numpy array or numpy vector
     :param plot: creates a graph if True
-    :type plot: bool
     :param xlab: label for the x-axis (score variable), optional
-    :type xlab: str
     :param ylab: label for the y-axis (binary variable), optional
-    :type ylab: str
     :param title: title for the plot, optional
-    :type title: str
     :param subtitle: subtitle for the plot, optional (default=None)
-    :type subtitle: str
     :param plot_dir: directory to write plot to
-    :type plot_dir str
     :param out_file file name for writing out the plot
-    :type out_file: str
     :param in_browser: if True, plots to browser
-    :type in_browser: bool
     :return: KS statistic (0 to 100),
     :rtype: float
     """
@@ -262,7 +233,7 @@ def ks_calculate(score_variable, binary_variable, plot=False, xlab='Score', ylab
     return ks
 
 
-def decile_plot(score_variable, binary_variable, xlab='Score', ylab='Actual', title='Decile Plot',
+def decile_plot(score_variable: pd.Series, binary_variable: pd.Series, xlab='Score', ylab='Actual', title='Decile Plot',
                 plot_maximum=None, plot_minimum=None, confidence_level=0.95, correlation=0, subtitle=None,
                 plot_dir=None, out_file=None, in_browser=False):
     """
@@ -275,33 +246,19 @@ def decile_plot(score_variable, binary_variable, xlab='Score', ylab='Actual', ti
 
 
     :param score_variable: continuous variable from the logistic regression
-    :type score_variable: pandas series, numpy array or numpy column vector
     :param binary_variable: binary outcome (dependent) variable from the logistic regression
-    :type binary_variable: pandas series, numpy array or numpy column vector
     :param xlab: label for the x-axis (score variable), optional
-    :type xlab: str
     :param ylab: label for the y-axis (binary variable), optional
-    :type ylab: str
     :param title: title for the plot, optional
-    :type title: str
     :param plot_maximum: maximum value for the plot, optional
-    :type plot_maximum: float
     :param plot_minimum: minimum value for the plot, optional
-    :type plot_minimum: float
     :param confidence_level: confidence level for confidence intervals around each decile, optional (default = 0.95)
-    :type confidence_level: float
     :param correlation: pair-wise correlation between data within each decile, optional (default=0)
-    :type correlation: float
     :param subtitle: subtitle for the plot, optional (default=None)
-    :type subtitle: str
     :param plot_dir: directory to write plot to
-    :type plot_dir: str
     :param out_file file name for writing out the plot
-    :type out_file: str
     :param in_browser: if True, plots to browser
-    :type in_browser: bool
-    :return: plot
-    :rtype: N/A
+    :return:
     """
     
     if isinstance(score_variable, np.ndarray):
@@ -396,7 +353,7 @@ def decile_plot(score_variable, binary_variable, xlab='Score', ylab='Actual', ti
     return
 
 
-def make_dir_tree(base_path, dirs, rename_to=None):
+def make_dir_tree(base_path: str, dirs: list, rename_to=None):
     """
     Create a directory structure.
     The directory structure is created under base_path.  If base_path already exists, it is renamed to
@@ -406,11 +363,8 @@ def make_dir_tree(base_path, dirs, rename_to=None):
     up the tree).
 
     :param base_path: base path to (and *including*) the top-level directory of the structure
-    :type base_path: str
     :param dirs: structure to build: list of 'leaf' directories
-    :type dirs: list
     :param rename_to: if an existing structure is found, what to rename it to.
-    :type rename_to: str
     :return: <none>
     """
     
@@ -431,16 +385,13 @@ def make_dir_tree(base_path, dirs, rename_to=None):
         os.makedirs(base_path + p)
 
 
-def importance_ranking_print(imp_dict, keys, title):
+def importance_ranking_print(imp_dict: dict, keys: list):
     """
     Find and print importance ranking for the output of genu.fit_eval.
 
     :param imp_dict: output of genu.fit_eval
-    :type imp_dict: dict
     :param keys: list of keys of imp_dict to print
-    :type keys: list
     :param title: title to print
-    :type title: str
     :return: None
     """
     pd.set_option('display.max_columns', None)
@@ -456,20 +407,16 @@ def importance_ranking_print(imp_dict, keys, title):
     print(x)
 
 
-def boot_mean(y_in, num_samples, coverage=0.95, norm_ci=False):
+def boot_mean(y_in: pd.Series, num_samples=100, coverage=0.95, norm_ci=False):
     """
     Bootstraps the mean of y_in to form a CI with coverage 'coverage'.
     Assumes there's enough correlation in the data to reduce the effective sample size to 1/4 the length
     of y_in.
 
     :param y_in: data to form a CI for
-    :type y_in: pandas Series
     :param num_samples: # of bootstrap samples to run
-    :type num_samples: int
     :param coverage: CI coverage level (as a decimal)
-    :type coverage: float
     :param norm_ci: if True, then assumes independence
-    :type norm_ci: bool
     :return: bootstrap CI
     :rtype list
     """
@@ -496,21 +443,16 @@ def boot_mean(y_in, num_samples, coverage=0.95, norm_ci=False):
     return list(ci_boot['means'])
 
 
-def feature_fit_plot(feature, feature_type, y_name, yh_name, sample_df, num_quantiles,
-                     coverage, boot_samples=0, norm_ci=True, extra_title=None):
+def feature_fit_plot(feature: str, feature_type: str, y_name: str, yh_name: str, sample_df: pd.DataFrame,
+                     num_quantiles: int, coverage: float, boot_samples=0, norm_ci=True, extra_title=None):
     """
     Generates a single feature_fit plot
     :param feature: name of column of sample_df to work on
-    :type feature: str
     :param feature_type: feature type: 'cts', 'spl' vs 'cat', 'emb'
-    :type feature_type: str
     :param y_name: name of the response variable in sample_df
-    :type y_name: str
     :param yh_name: name of predicted outcome variable in sample_df
-    :type yh_name: str
     :param sample_df: DataFrame with columns feature, y_name, yh_name
     :param num_quantiles: # of divisions to slice a 'cts' or 'spl' variable
-    :type num_quantiles: int
     :param boot_samples:
     :param coverage:
     :param norm_ci:
@@ -565,7 +507,7 @@ def feature_fit_plot(feature, feature_type, y_name, yh_name, sample_df, num_quan
     return figx1
 
 
-def fit_by_feature(features, targets, sample_df, plot_dir=None, num_quantiles=10,
+def fit_by_feature(features: dict, targets: dict, sample_df: pd.DataFrame, plot_dir=None, num_quantiles=10,
                    coverage=0.95, boot_samples=0, norm_ci=True, in_browser=False, plot_ks=False,
                    slices=dict()):
     """
@@ -575,28 +517,17 @@ def fit_by_feature(features, targets, sample_df, plot_dir=None, num_quantiles=10
     The second is a plot of the mean model output versus mean target 'y' grouped by values of the feature.
 
     :param features: features to generate plots for, key is feature name, value is 'cts'/'spl', 'cat', 'emb'.
-    :type features: dict
     :param targets: dict with keys 'model_output' and 'target' that point to columns in sample_df_in
-    :type targets dict
     :param sample_df: DataFrame from which to take samples and calculate distributions
-    :type sample_df: pandas DataFrame
     :param plot_dir: directory to write plots out to
-    :type plot_dir: str
     :param num_quantiles: number of quantiles at which to discretize continuous variables
-    :type num_quantiles: int
     :param coverage: coverage of bootstrap CI
-    :type coverage: float
     :param boot_samples: # of bootstrap samples to take
-    :type boot_samples: int
     :param norm_ci: if True, assume independence and CLT is OK
-    :type norm_ci: bool
     :param in_browser: True means also show in browser
-    :type in_browser: bool
     :param plot_ks: if True, generate KS plot
-    :type plot_ks: bool
     :param slices: optional slices of sample_df_in to also make graphs for. key to dict is name of slice, entry is
                    boolean array for .loc access to sample_df_in
-    :type slices: dict
 
     """
     pio.renderers.default = 'browser'

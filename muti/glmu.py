@@ -1,18 +1,18 @@
+from muti import genu
+import clickhouse_driver
+import pandas as pd
 from modeling.glm import glm
-import muti.genu as gen
 import numpy as np
 import math
 
 
-def build_model_formula(features_dict, target):
+def build_model_formula(features_dict: dict, target: str):
     """
     Builds the model formula for glm from modeling based on the features_dict specification.
     Does not included embedded features
     
     :param features_dict: features dictionary
-    :type features_dict: dict
     :param target: dependent variable
-    :type target: str
     :return: model formula
     :rtype str
     """
@@ -29,8 +29,8 @@ def build_model_formula(features_dict, target):
     return ms
 
 
-def incr_build(model, target_var, start_list, add_list, get_data_fn, sample_size, client, global_valid_df_in,
-               family='normal'):
+def incr_build(model: str, target_var: str, start_list: list, add_list: list, get_data_fn, sample_size: int,
+               client: clickhouse_driver.Client, global_valid_df_in: pd.DataFrame, family='normal'):
 
     """
     This function builds a sequence of GLM models. The get_data_fn takes a list of values as contained in
@@ -43,23 +43,14 @@ def incr_build(model, target_var, start_list, add_list, get_data_fn, sample_size
     This function is the GLM counterpart to incr_build
 
     :param model: model specification for glm
-    :type model: str
     :param target_var: response variable we're modeling
-    :type target_var: str
     :param start_list: list of (general) time periods for model build for the first model build
-    :type start_list: list
     :param add_list: list of out-of-time periods to evaluate
-    :type add_list: list
     :param get_data_fn: function to get a pandas DataFrame of data to work on
-    :type get_data_fn: function
     :param sample_size: size of pandas DataFrames to get
-    :type sample_size: int
     :param client: db connector
-    :type client: clickhouse_driver.Client
     :param family: family of the model ('normal' or 'binomial')
-    :type family: str
     :param global_valid_df_in: pandas DataFrame covering all the values of add_list for validation
-    :type global_valid_df_in: pandas DataFrame
     :return: lists of out-of-sample values:
              add_list
              rmse  root mean squared error
@@ -91,7 +82,7 @@ def incr_build(model, target_var, start_list, add_list, get_data_fn, sample_size
         res = valid_df[target_var] - np.array(yh).flatten()
         rmse_valid += [math.sqrt(np.square(res).mean())]
         valid_df['yh'] = yh
-        cor = gen.r_square(valid_df['yh'], valid_df[target_var])
+        cor = genu.r_square(valid_df['yh'], valid_df[target_var])
         corr_valid += [cor]
     
     return segs, rmse_valid, corr_valid, global_valid_df

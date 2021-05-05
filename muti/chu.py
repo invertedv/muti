@@ -2,6 +2,7 @@
 Utilities that help with clickhouse
 
 """
+import clickhouse_driver
 
 
 def make_connection():
@@ -23,23 +24,18 @@ def make_connection():
     return client
 
 
-def run_query(query_or_file, client, is_file=False, return_df=False, replace_source=None, replace_dest=None):
+def run_query(query_or_file: str, client: clickhouse_driver.Client, is_file=False,
+              return_df=False, replace_source=None, replace_dest=None):
     """
 
     Run a clickhouse query.
     
     :param query_or_file: either a query to run or a file containing a query to run
-    :type query_or_file: str
     :param client: clickhouse Client
-    :type client: Client
     :param is_file: True means the first argument is a file name
-    :type is_file: bool
     :param return_df: True means return the output as a DataFrame
-    :type return_df: bool
     :param replace_source: text in the query to replace
-    :type replace_source str or list of str
     :param replace_dest: text to put into the query
-    :type replace_dest: str or list of str
     :return: pandas DataFrame if return_df=True
     :rtype DataFrame
     """
@@ -65,15 +61,16 @@ def run_query(query_or_file, client, is_file=False, return_df=False, replace_sou
     client.execute(query)
 
 
-def import_flat_file(table_name, file_name, delim="|", format="CSV", options=""):
+def import_flat_file(table_name: str, file_name: str, delim="|", format="CSV", options=""):
     """
-      Import a CSV into a clickhouse table
-
-      table_name    str   name of table to insert into
-      file_name     str   file to import
-      delim         str   field delimiter in the input file
-                          if null, then delim option is not used
-      format        str   CSV or TabSeparated
+    Import a flat file into ClickHouse
+    
+    :param table_name: table to import into (fully qualified with db name)
+    :param file_name: file to read from
+    :param delim: delimiter in the file
+    :param format: file format
+    :param options: other clickhouse options
+    :return:
     """
     
     import os
