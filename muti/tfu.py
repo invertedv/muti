@@ -13,20 +13,24 @@ import plotly.io as pio
 from plotly.subplots import make_subplots
 import warnings
 
-def get_pred(yh, column=None):
+def get_pred(yh, column=None, wts=None):
     """
     Returns an array of predicted values from a keras predict method. If column is None, then this
     assumes the output has one column and it returns a flattened array.
     If column is an int, it returns that column from the prediction matrix.
     If column is a list of int, it returns the column sums
-    
+
     :param yh: keras model prediction
     :type yh: keras.model.predict() output
     :param column: which column(s) to return
     :type column: int or list of int
+    :param wts: array of weights. if yh is n x p, wts has length p
+    :type wts:: nd.array
     :return: prediction array
     :rtype ndarray
     """
+    if wts is not None:
+        yh = yh * wts
     if column is None:
         return np.array(yh).flatten()
     if not isinstance(column, list):
