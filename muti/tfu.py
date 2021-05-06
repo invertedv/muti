@@ -180,7 +180,8 @@ def build_model_cols(feature_dict: dict, out_vocab_dir=None, print_details=True)
     return tf_cols_cts, inputs_cts, tf_cols_cat, inputs_cat
 
 
-def get_tf_dataset(feature_dict: dict, target: str, df: pd.DataFrame, batch_size: int, repeats=None):
+def get_tf_dataset(feature_dict: dict, target: str, df: pd.DataFrame, batch_size: int, repeats=0,
+                   buffer_size=0):
     """
     build a tf dataset from a pandas DataFrame
     
@@ -192,8 +193,10 @@ def get_tf_dataset(feature_dict: dict, target: str, df: pd.DataFrame, batch_size
     :return: tf dataset
     """
     tf_ds = tf.data.Dataset.from_tensor_slices((dict(df[feature_dict.keys()]), df[target]))
-    if repeats is None:
-        tf_ds = tf_ds.shuffle(df.shape[0]).batch(batch_size).repeat()
+    if repeats == 0:
+        if buffer_size == 0:
+            buffer_size = df.shape[0]
+        tf_ds = tf_ds.shuffle(buffer_size).batch(batch_size).repeat()
     else:
         tf_ds = tf_ds.batch(batch_size).repeat(repeats)
     return tf_ds
