@@ -773,15 +773,41 @@ def dq_get_bias(qry: str):
     return lx_df['lx'], dist_df
 
 
-def model_fit(mb_query: str, features_dict, target_var: str, model_struct_fn, get_model_sample_fn,
-              existing_models, batch_size, epochs, patience, verbose,
-              bias_query, model_in, model_out, out_tensorboard, lr, iter, model_save_dir, model_columns,
-              target_values):
-    from muti import tfu
+def model_fit(mb_query: str, features_dict: dict, target_var: str, model_struct_fn, get_model_sample_fn,
+              existing_models: dict, batch_size: int, epochs: int, patience: int, verbose: int,
+              bias_query: str, model_in: str, model_out: str, out_tensorboard: str, lr: float, iter: int,
+              model_save_dir: str, model_columns: list, target_values: list):
+    """
+    Fits a Keras model. Self-contained with the idea that it is called as a new process.
+    
+    :param mb_query: query to get the model-build data
+    :param features_dict: dict of features used to build the model structure
+    :param target_var: name of the field that's the dependent variable
+    :param model_struct_fn: function that builds the model structure
+    :param get_model_sample_fn: function that retrieves the model-build data
+    :param existing_models: dict of existing models to run and add to the model-build DataFrame
+    :param batch_size: batch size for model build
+    :param epochs: # of epochs to run
+    :param patience: patience in waiting to see if validation metric does not improve
+    :param verbose: verbosity of .fit (0=quiet, 1=not)
+    :param bias_query: query to calculate initial bias of output layer
+    :param model_in: location of the model (for a warm start)
+    :param model_out: location to store the model
+    :param out_tensorboard: location of tensorboard output
+    :param lr: learning rate
+    :param iter: iteration we're on (for saving the model)
+    :param model_save_dir: where to put the .h5 file
+    :param model_columns: columns of .predict output we're interested in for plotting
+    :param target_values: values of the target feature that correspond to model_columns
+    :return: history dict
+    """
+    #from muti import tfu commented out 5/1
     import tensorflow as tf
     from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
     import tensorflow.keras.backend as be
     import os
+    
+    # tf settings
     os.environ['data_format'] = 'NCHW'
     os.environ['KMP_AFFINITY'] = 'granularity=fine,compact,1,0'
     os.environ['KMP_BLOCKTIME'] = '1'
@@ -797,7 +823,7 @@ def model_fit(mb_query: str, features_dict, target_var: str, model_struct_fn, ge
         mod = tf.keras.models.load_model(model_in)
         be.set_value(mod.optimizer.lr, lr)
     else:
-        bias, p_df = tfu.dq_get_bias(bias_query)
+        bias, p_df = dq_get_bias(bias_query)
         mod = model_struct_fn(features_dict, learning_rate=lr, output_bias=bias)
         print(mod.summary())
     
@@ -826,15 +852,15 @@ def model_fit(mb_query: str, features_dict, target_var: str, model_struct_fn, ge
     print('modeling data set size: {0}'.format(model_df.shape[0]))
     print('validation data set size: {0}'.format(valid_df.shape[0]))
     steps_per_epoch = int(model_df.shape[0] / batch_size)
-    model_ds = tfu.get_tf_dataset(features_dict, target_var, model_df, batch_size, buffer_size=1000000)
-    valid_ds = tfu.get_tf_dataset(features_dict, target_var, valid_df, batch_size, repeats=1)
+    model_ds = get_tf_dataset(features_dict, target_var, model_df, batch_size, buffer_size=1000000)
+    valid_ds = get_tf_dataset(features_dict, target_var, valid_df, batch_size, repeats=1)
     print('starting fit')
     h = mod.fit(model_ds, epochs=epochs, steps_per_epoch=steps_per_epoch, verbose=verbose,
                 callbacks=[tensorboard, model_ckpt, early_stopping], validation_data=valid_ds)
     save_file = model_save_dir + 'model' + str(iter) + '.h5'
     mod.save(save_file, overwrite=True, save_format='h5')
     model_output = mod.predict(valid_ds)
-    valid_df['model'] = tfu.get_pred(model_output, model_columns)
+    valid_df['model'] = get_pred(model_output, model_columns)
     valid_df['actual'] = valid_df[target_var].isin(target_values).astype(int)
     title = 'Validation KS<br>After {0} epochs'.format((iter + 1) * epochs)
     genu.ks_calculate(valid_df['model'], valid_df['actual'], in_browser=True, plot=True, title=title)
