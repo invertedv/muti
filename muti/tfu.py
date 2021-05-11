@@ -2,15 +2,16 @@
 Utilities that help with the building of tensorflow keras models
 
 """
+from muti import chu, genu
 import tensorflow as tf
-import os
 import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
 import plotly.io as pio
 from plotly.subplots import make_subplots
 import warnings
-
+import os
+import math
 
 def polynomial_decay_learning_rate(step: int, learning_rate_start: float, learning_rate_final: float,
                                    decay_steps: int, power: float):
@@ -53,6 +54,32 @@ def get_pred(yh, column=None, wts=None):
     # sum up columns
     return np.sum(yh[:, column], axis=1)
 
+
+def model_predictions(df: pd.DataFrame, specs: list, in_place = True):
+    """
+    find the predicted values for a keras model
+    
+    :param: df - data frame to run the model over
+    :param specs - specifications of model. list elements
+
+           [0] - location
+           [1] - features_dict
+           [2] - target of model
+           [3] - column(s)
+           [4] - output name
+   
+    :return:
+    """
+    modl = tf.keras.models.load_model(specs[0])
+    ds = get_tf_dataset(specs[1], specs[2], df, 1000, 1)
+    yh = get_pred(modl.predict(ds), specs[3])
+    if in_place:
+        df[specs[4]] = yh
+        return
+    else:
+        return yh
+    
+    
 
 def plot_history(history: dict, groups=['loss'], metric='loss', first_epoch=0, title=None, plot_dir=None, in_browser=False):
     """
@@ -708,3 +735,113 @@ def marginal(model: tf.keras.Model, features_target: dict, features_dict: dict, 
     imp_df = pd.DataFrame(importance, index=['importance']).transpose()
     imp_df = imp_df.sort_values('importance', ascending=False)
     return imp_df
+
+
+def dq_get_bias(qry: str):
+    """
+    This function is used to obtain values to adjust the initial bias of the output layer of a DNN model whose
+    output is a softmax or sigmoid layer
+    .
+    It returns
+      - a pandas DataFrame with column lx whose rows are the different levels of the model target and the
+        value 'lx' which is the initial bias.
+      - a pandas DataFrame of the query result, along with a column 'p' of observed class probabilities and
+        a 'check' column that should equal 'p' based on the bias calculation
+        
+    The input query should return a column of the levels of the model target and a column 'n' of counts for each
+    
+    Find values for initial bias for SoftMax for DQ model
+    :param qry: query that returns target classes and counts
+    :return: log odds values by levels of the model target variable
+    """
+    client = chu.make_connection()
+    dist_df = chu.run_query(qry, client, return_df=True )
+    dist_df['p'] = dist_df['n'] / dist_df['n'].sum()
+    avalue = np.zeros(dist_df.shape[0])
+    lx_df = pd.DataFrame(data={'lx': avalue})
+    for j in range(1, dist_df.shape[0]):
+        lx_df.iloc[j]['lx'] = lx_df.iloc[j-1]['lx'] + math.log(float(dist_df.iloc[j]['n']) / float(dist_df.iloc[j-1]['n']))
+    dist_df['check_value'] = np.exp(lx_df['lx']) / np.exp(lx_df['lx']).sum()
+    client.disconnect()
+    return lx_df['lx'], dist_df
+
+
+def model_fit(mb_query: str, features_dict, target_var: str, model_struct_fn, get_model_sample_fn,
+              existing_models, batch_size, epochs, patience, verbose,
+              bias_query, model_in, model_out, out_tensorboard, lr, iter, model_save_dir, model_columns,
+              target_values):
+    from muti import tfu
+    import tensorflow as tf
+    from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
+    import tensorflow.keras.backend as be
+    import os
+    os.environ['data_format'] = 'NCHW'
+    os.environ['KMP_AFFINITY'] = 'granularity=fine,compact,1,0'
+    os.environ['KMP_BLOCKTIME'] = '1'
+    os.environ['OMP_NUM_THREADS'] = '4'
+    os.environ['KMP_SETTINGS'] = 'TRUE'
+    
+    tf.config.threading.set_inter_op_parallelism_threads(4)
+    tf.config.threading.set_intra_op_parallelism_threads(2)
+    os.environ['TF_XLA_FLAGS'] = '--tf_xla_enable_xla_devices'
+    
+    # model
+    if model_in != '':
+        mod = tf.keras.models.load_model(model_in)
+        be.set_value(mod.optimizer.lr, lr)
+    else:
+        bias, p_df = tfu.dq_get_bias(bias_query)
+        mod = model_struct_fn(features_dict, learning_rate=lr, output_bias=bias)
+        print(mod.summary())
+    
+    # callbacks
+    model_ckpt = ModelCheckpoint(model_out, monitor='val_loss', save_best_only=True)
+    
+    tensorboard = TensorBoard(
+        log_dir=out_tensorboard,
+        histogram_freq=1,
+        write_images=True,
+        embeddings_freq=100
+    )
+    
+    early_stopping = tf.keras.callbacks.EarlyStopping(
+        monitor='val_loss',
+        verbose=1,
+        patience=patience,
+        mode='auto',
+        restore_best_weights=True)
+    
+    print('getting data')
+    data_df = get_model_sample_fn(mb_query, existing_models)
+    model_df = data_df.loc[data_df['holdout'] == 0].copy()
+    valid_df = data_df.loc[data_df['holdout'] == 1].copy()
+    
+    print('modeling data set size: {0}'.format(model_df.shape[0]))
+    print('validation data set size: {0}'.format(valid_df.shape[0]))
+    steps_per_epoch = int(model_df.shape[0] / batch_size)
+    model_ds = tfu.get_tf_dataset(features_dict, target_var, model_df, batch_size, buffer_size=1000000)
+    valid_ds = tfu.get_tf_dataset(features_dict, target_var, valid_df, batch_size, repeats=1)
+    print('starting fit')
+    h = mod.fit(model_ds, epochs=epochs, steps_per_epoch=steps_per_epoch, verbose=verbose,
+                callbacks=[tensorboard, model_ckpt, early_stopping], validation_data=valid_ds)
+    save_file = model_save_dir + 'model' + str(iter) + '.h5'
+    mod.save(save_file, overwrite=True, save_format='h5')
+    model_output = mod.predict(valid_ds)
+    valid_df['model'] = tfu.get_pred(model_output, model_columns)
+    valid_df['actual'] = valid_df[target_var].isin(target_values).astype(int)
+    title = 'Validation KS<br>After {0} epochs'.format((iter + 1) * epochs)
+    genu.ks_calculate(valid_df['model'], valid_df['actual'], in_browser=True, plot=True, title=title)
+    title = 'Validation Decile Plot<br>After {0} epochs'.format((iter + 1) * epochs)
+    genu.decile_plot(valid_df['model'], valid_df['actual'], title=title, in_browser=True)
+    
+    return h.history
+
+
+def model_fit_call(args):
+    """
+    helper routint to call model_fit().  See model_fit args
+    :param args: parameters to model_fit
+    :return: history dictionary
+    """
+    return model_fit(*args)
+
