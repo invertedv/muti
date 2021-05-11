@@ -674,44 +674,51 @@ def marginal(model: tf.keras.Model, features_target: dict, features_dict: dict, 
     """
     
     pio.renderers.default = 'browser'
-    
-    target_qs = [0, .1, .25, .5, .75, .9, 1]
-    quantiles = sample_df[model_col].quantile(target_qs)
-    quantiles.iloc[0] -= 1.0
-    num_grp = quantiles.shape[0] - 1
-    if num_grp != 6:
-        warnings.warn('Did not get 6 MOG groups')
-        return
-    # now we have the six MOG groups that we will base the graphs on
-    sample_df['grp'] = pd.cut(sample_df[model_col], quantiles, labels=['grp' + str(j) for j in range(num_grp)], right=True)
 
-    sub_titles = []
-    importance = {}
+    # target quantiles for the 6 MOGs
+    target_qs = [0, .1, .25, .5, .75, .9, 1]
     # reverse(ROYGBIV)
     cols = ['#7d459c', '#2871a7', '#056916', '#dbac1a', '#dd7419', '#bd0d0d']
-
-    # graph titles. The title of the RHS graph depends on the feature type -- so it's assigned later
-    for j in range(num_grp):
-        sub_title = 'Model Output in {0} to {1}'.format(round(quantiles.iloc[j], 2), round(quantiles.iloc[j + 1], 2))
-        sub_title += '<br>'
-        sub_title += 'Quantile {0} to {1}'.format(target_qs[j], target_qs[j + 1])
-        sub_titles += [sub_title]
-    sub_titles += ['Place Holder']
+    # add a 'total' slice
     slices['Overall'] = np.full((sample_df.shape[0]), True)
-    
+    # importance metrics
+    importance = {}
+
     # go through the features
     for target in features_target:
         # run through the slices
         for slice in slices.keys():
             i = slices[slice]
-            if (sample_df.loc[i].groupby('grp').count().min()).iloc[0] > 100:
+            samp_df = sample_df.loc[i].copy()
+            quantiles = samp_df.loc[i][model_col].quantile(target_qs)
+            quantiles.iloc[0] -= 1.0
+            num_grp = quantiles.shape[0] - 1
+            if num_grp != 6:
+                warnings.warn('Number of MOGs != 6 in tfu.marginal for slice {0}'.format(slice))
+                return
+            # graph titles. The title of the RHS graph depends on the feature type -- so it's assigned later
+            sub_titles = []
+            for j in range(num_grp):
+                sub_title = 'Model Output in {0} to {1}'.format(round(quantiles.iloc[j], 2),
+                                                                round(quantiles.iloc[j + 1], 2))
+                sub_title += '<br>'
+                sub_title += 'Quantile {0} to {1}'.format(target_qs[j], target_qs[j + 1])
+                sub_titles += [sub_title]
+            sub_titles += ['Place Holder']
+            # now we have the six MOG groups that we will base the graphs on
+            samp_df['grp'] = pd.cut(samp_df[model_col], quantiles, labels=['grp' + str(j) for j in range(num_grp)],
+                                    right=True)
+            
+            if (samp_df.loc[i].groupby('grp').count().min()).iloc[0] > 100:
                 title_aug = title + '<br>Slice: ' + slice
                 if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
-                    fig, imp_in = _marginal_cts(model, column, features_dict, sample_df.loc[i], target, num_grp, num_sample, title_aug,
-                                                sub_titles, cols)
+                    fig, imp_in = _marginal_cts(model, column, features_dict, samp_df.loc[i], target, num_grp,
+                                                    num_sample, title_aug,
+                                                    sub_titles, cols)
                 else:
-                    fig, imp_in = _marginal_cat(model, column, features_dict, sample_df.loc[i], target, num_grp, num_sample, title_aug,
-                                                sub_titles, cols)
+                    fig, imp_in = _marginal_cat(model, column, features_dict, samp_df.loc[i], target, num_grp,
+                                                    num_sample, title_aug,
+                                                    sub_titles, cols)
                 importance[target + '_' + slice] = imp_in
                 if in_browser:
                     fig.show()
@@ -722,7 +729,7 @@ def marginal(model: tf.keras.Model, features_target: dict, features_dict: dict, 
                     os.makedirs(pdir + 'html/', exist_ok=True)
                     os.makedirs(pdir + 'png/', exist_ok=True)
                     
-                    fname = pdir + 'html/Marginal_'  + target + '.html'
+                    fname = pdir + 'html/Marginal_' + target + '.html'
                     fig.write_html(fname)
                     
                     # needed for png to look decent
@@ -731,7 +738,7 @@ def marginal(model: tf.keras.Model, features_target: dict, features_dict: dict, 
                     fig.write_image(fname)
             else:
                 print('No marginal graph for {0} and slice {1}'.format(target, slice))
-
+    
     imp_df = pd.DataFrame(importance, index=['importance']).transpose()
     imp_df = imp_df.sort_values('importance', ascending=False)
     return imp_df
