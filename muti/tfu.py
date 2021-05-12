@@ -693,7 +693,7 @@ def marginal(model: tf.keras.Model, features_target: dict, features_dict: dict, 
             quantiles = samp_df.loc[i][model_col].quantile(target_qs)
             quantiles.iloc[0] -= 1.0
             num_grp = quantiles.shape[0] - 1
-            if quantiles.nunique() != 6:
+            if quantiles.nunique() != 7:
                 print('No marginal graph for {0} and slice {1}'.format(target, slice))
                 break
 
