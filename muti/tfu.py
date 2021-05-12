@@ -693,9 +693,10 @@ def marginal(model: tf.keras.Model, features_target: dict, features_dict: dict, 
             quantiles = samp_df.loc[i][model_col].quantile(target_qs)
             quantiles.iloc[0] -= 1.0
             num_grp = quantiles.shape[0] - 1
-            if num_grp != 6:
-                warnings.warn('Number of MOGs != 6 in tfu.marginal for slice {0}'.format(slice))
-                return
+            if quantiles.nunique() != 6:
+                print('No marginal graph for {0} and slice {1}'.format(target, slice))
+                break
+
             # graph titles. The title of the RHS graph depends on the feature type -- so it's assigned later
             sub_titles = []
             for j in range(num_grp):
@@ -708,7 +709,7 @@ def marginal(model: tf.keras.Model, features_target: dict, features_dict: dict, 
             # now we have the six MOG groups that we will base the graphs on
             samp_df['grp'] = pd.cut(samp_df[model_col], quantiles, labels=['grp' + str(j) for j in range(num_grp)],
                                     right=True)
-            
+        
             if (samp_df.loc[i].groupby('grp').count().min()).iloc[0] > 100:
                 title_aug = title + '<br>Slice: ' + slice
                 if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
