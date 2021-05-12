@@ -4,8 +4,6 @@ Utilities that help with the building of tensorflow keras models
 """
 from muti import chu, genu
 import tensorflow as tf
-from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
-import tensorflow.keras.backend as be
 import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
@@ -775,9 +773,10 @@ def dq_get_bias(qry: str):
     client.disconnect()
     return lx_df['lx'], dist_df
 
-def model_fit(mb_query: str, features_dict: dict, target_var: str, get_model_sample_fn,
+
+def model_fit(mb_query: str, features_dict: dict, target_var: str, model_struct_fn, get_model_sample_fn,
               existing_models: dict, batch_size: int, epochs: int, patience: int, verbose: int,
-              model_loc: str, out_tensorboard: str, lr: float, iter: int,
+              bias_query: str, model_in: str, model_out: str, out_tensorboard: str, lr: float, iter: int,
               model_save_dir: str, model_columns: list, target_values: list):
     """
     Fits a Keras model. Self-contained with the idea that it is called as a new process.
@@ -804,28 +803,33 @@ def model_fit(mb_query: str, features_dict: dict, target_var: str, get_model_sam
     :return: history dict
     """
     #from muti import tfu commented out 5/1
-#    import tensorflow as tf
-#    from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
-#    import tensorflow.keras.backend as be
-#    import os
-
-    # tf settings
-#    os.environ['data_format'] = 'NCHW'
-#    os.environ['KMP_AFFINITY'] = 'granularity=fine,compact,1,0'
-#    os.environ['KMP_BLOCKTIME'] = '1'
-#    os.environ['OMP_NUM_THREADS'] = '4'
-#    os.environ['KMP_SETTINGS'] = 'TRUE'
+    import tensorflow as tf
+    from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
+    import tensorflow.keras.backend as be
+    import os
     
-#    tf.config.threading.set_inter_op_parallelism_threads(4)
-#    tf.config.threading.set_intra_op_parallelism_threads(2)
-#    os.environ['TF_XLA_FLAGS'] = '--tf_xla_enable_xla_devices'
+    # tf settings
+    os.environ['data_format'] = 'NCHW'
+    os.environ['KMP_AFFINITY'] = 'granularity=fine,compact,1,0'
+    os.environ['KMP_BLOCKTIME'] = '1'
+    os.environ['OMP_NUM_THREADS'] = '4'
+    os.environ['KMP_SETTINGS'] = 'TRUE'
+    
+    tf.config.threading.set_inter_op_parallelism_threads(4)
+    tf.config.threading.set_intra_op_parallelism_threads(2)
+    os.environ['TF_XLA_FLAGS'] = '--tf_xla_enable_xla_devices'
     
     # model
-    mod = tf.keras.models.load_model(model_loc)
-#    be.set_value(mod.optimizer.lr, lr)
+    if model_in != '':
+        mod = tf.keras.models.load_model(model_in)
+        be.set_value(mod.optimizer.lr, lr)
+    else:
+        bias, p_df = dq_get_bias(bias_query)
+        mod = model_struct_fn(features_dict, learning_rate=lr, output_bias=bias)
+        print(mod.summary())
     
     # callbacks
-    model_ckpt = ModelCheckpoint(model_loc, monitor='val_loss', save_best_only=True)
+    model_ckpt = ModelCheckpoint(model_out, monitor='val_loss', save_best_only=True)
     
     tensorboard = TensorBoard(
         log_dir=out_tensorboard,
