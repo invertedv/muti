@@ -2,6 +2,8 @@
 Utilities that help with the building of tensorflow keras models
 
 """
+import multiprocessing
+
 from muti import chu, genu
 import tensorflow as tf
 import numpy as np
@@ -80,7 +82,6 @@ def model_predictions(df: pd.DataFrame, specs: list, in_place = True):
         return yh
     
     
-
 def plot_history(history: dict, groups=['loss'], metric='loss', first_epoch=0, title=None, plot_dir=None, in_browser=False):
     """
     plot the history of metrics from a keras model tf build
@@ -806,18 +807,18 @@ def model_fit(mb_query: str, features_dict: dict, target_var: str, model_struct_
     import tensorflow as tf
     from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
     import tensorflow.keras.backend as be
-    import os
+#    import os
     
     # tf settings
-    os.environ['data_format'] = 'NCHW'
-    os.environ['KMP_AFFINITY'] = 'granularity=fine,compact,1,0'
-    os.environ['KMP_BLOCKTIME'] = '1'
-    os.environ['OMP_NUM_THREADS'] = '4'
-    os.environ['KMP_SETTINGS'] = 'TRUE'
+#    os.environ['data_format'] = 'NCHW'
+#    os.environ['KMP_AFFINITY'] = 'granularity=fine,compact,1,0'
+#    os.environ['KMP_BLOCKTIME'] = '1'
+#    os.environ['OMP_NUM_THREADS'] = '4'
+#    os.environ['KMP_SETTINGS'] = 'TRUE'
     
-    tf.config.threading.set_inter_op_parallelism_threads(4)
-    tf.config.threading.set_intra_op_parallelism_threads(2)
-    os.environ['TF_XLA_FLAGS'] = '--tf_xla_enable_xla_devices'
+#    tf.config.threading.set_inter_op_parallelism_threads(4)
+#    tf.config.threading.set_intra_op_parallelism_threads(2)
+#    os.environ['TF_XLA_FLAGS'] = '--tf_xla_enable_xla_devices'
     
     # model
     if model_in != '':
@@ -879,3 +880,81 @@ def model_fit_call(args):
     """
     return model_fit(*args)
 
+
+def model_fitter(q: multiprocessing.Queue, mb_query: str, features_dict: dict, target_var: str, get_model_sample_fn,
+              existing_models: dict, batch_size: int, epochs: int, patience: int, verbose: int,
+              model_out: str, out_tensorboard: str, lr: float, iter: int,
+              model_save_dir: str, model_columns: list, target_values: list):
+    """
+    Function to fit a tf keras model. Designed to be called by multiprocessing.Process
+    
+    :param q:  Queue object -- used to return history results
+    :param mb_query: query to get model-build data
+    :param features_dict: features in the model
+    :param target_var: target variable of the model
+    :param get_model_sample_fn: function to get the model-build data, takes mb_query, existing_models as args
+    :param existing_models: dict of models to run over the data and add to the model-build DataFrame
+    :param batch_size: batch size for tf
+    :param epochs: # of epochs of the data to run
+    :param patience: patience -- # of epochs of non-improving val_loss before quitting
+    :param verbose: print level for tf
+    :param model_out: output directory for full model
+    :param out_tensorboard: output directory for tb
+    :param lr: learning rate. if = 0 then not applied
+    :param iter: iteration we're on
+    :param model_save_dir: directory to save 'h5' format of model
+    :param model_columns: columns of model output to used for KS, decile plots
+    :param target_values: values of target_var that correspond to model_columns
+    :return:
+    """
+    from muti import genu
+    import tensorflow as tf
+    import tensorflow.keras.backend as be
+    from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
+    
+    # model
+    mod = tf.keras.models.load_model(model_out)
+    if lr > 0.0:
+        be.set_value(mod.optimizer.lr, lr)
+
+    # callbacks
+    model_ckpt = ModelCheckpoint(model_out, monitor='val_loss', save_best_only=True)
+    
+    tensorboard = TensorBoard(
+        log_dir=out_tensorboard,
+        histogram_freq=1,
+        write_images=True,
+        embeddings_freq=100
+    )
+    
+    early_stopping = tf.keras.callbacks.EarlyStopping(
+        monitor='val_loss',
+        verbose=1,
+        patience=patience,
+        mode='auto',
+        restore_best_weights=True)
+    
+    print('getting data')
+    data_df = get_model_sample_fn(mb_query, existing_models)
+    model_df = data_df.loc[data_df['holdout'] == 0].copy()
+    valid_df = data_df.loc[data_df['holdout'] == 1].copy()
+    
+    print('modeling data set size: {0}'.format(model_df.shape[0]))
+    print('validation data set size: {0}'.format(valid_df.shape[0]))
+    steps_per_epoch = int(model_df.shape[0] / batch_size)
+    model_ds = get_tf_dataset(features_dict, target_var, model_df, batch_size, buffer_size=1000000)
+    valid_ds = get_tf_dataset(features_dict, target_var, valid_df, batch_size, repeats=1)
+    print('starting fit')
+    h = mod.fit(model_ds, epochs=epochs, steps_per_epoch=steps_per_epoch, verbose=verbose,
+                callbacks=[tensorboard, model_ckpt, early_stopping], validation_data=valid_ds)
+
+    q.put(h.history)
+    save_file = model_save_dir + 'model' + str(iter) + '.h5'
+    mod.save(save_file, overwrite=True, save_format='h5')
+    model_output = mod.predict(valid_ds)
+    valid_df['model'] = get_pred(model_output, model_columns)
+    valid_df['actual'] = valid_df[target_var].isin(target_values).astype(int)
+    title = 'Validation KS<br>After {0} epochs'.format((iter + 1) * epochs)
+    genu.ks_calculate(valid_df['model'], valid_df['actual'], in_browser=True, plot=True, title=title)
+    title = 'Validation Decile Plot<br>After {0} epochs'.format((iter + 1) * epochs)
+    genu.decile_plot(valid_df['model'], valid_df['actual'], title=title, in_browser=True)
