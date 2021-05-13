@@ -2,7 +2,6 @@
 Utilities that help with the building of tensorflow keras models
 
 """
-import multiprocessing
 
 from muti import chu, genu
 import tensorflow as tf
@@ -14,6 +13,7 @@ from plotly.subplots import make_subplots
 import warnings
 import os
 import math
+import multiprocessing
 
 def polynomial_decay_learning_rate(step: int, learning_rate_start: float, learning_rate_final: float,
                                    decay_steps: int, power: float):
@@ -656,6 +656,8 @@ def marginal(model: tf.keras.Model, features_target: dict, features_dict: dict, 
     - This value is termed 'importance' and is returned.
 
     Currently the MOG groups are defined once -- not separately for each slice
+    
+    The ouput is a pd.DataFrame where the rows are the features and the columns are the slices.
 
     :param model: A keras tf model with a 'predict' method that takes a tf dataset as input
     :param features_target: features to generate plots for.
@@ -675,7 +677,7 @@ def marginal(model: tf.keras.Model, features_target: dict, features_dict: dict, 
     """
     
     pio.renderers.default = 'browser'
-
+    
     # target quantiles for the 6 MOGs
     target_qs = [0, .1, .25, .5, .75, .9, 1]
     # reverse(ROYGBIV)
@@ -683,11 +685,12 @@ def marginal(model: tf.keras.Model, features_target: dict, features_dict: dict, 
     # add a 'total' slice
     slices['Overall'] = np.full((sample_df.shape[0]), True)
     # importance metrics
-    importance = {}
-
+    importance = dict()
+    
     # go through the features
     for target in features_target:
         # run through the slices
+        targ_imp = dict()
         for slice in slices.keys():
             i = slices[slice]
             samp_df = sample_df.loc[i].copy()
@@ -697,7 +700,7 @@ def marginal(model: tf.keras.Model, features_target: dict, features_dict: dict, 
             if quantiles.nunique() != 7:
                 print('No marginal graph for {0} and slice {1}'.format(target, slice))
                 break
-
+            
             # graph titles. The title of the RHS graph depends on the feature type -- so it's assigned later
             sub_titles = []
             for j in range(num_grp):
@@ -710,18 +713,19 @@ def marginal(model: tf.keras.Model, features_target: dict, features_dict: dict, 
             # now we have the six MOG groups that we will base the graphs on
             samp_df['grp'] = pd.cut(samp_df[model_col], quantiles, labels=['grp' + str(j) for j in range(num_grp)],
                                     right=True)
-        
+            
             if (samp_df.loc[i].groupby('grp').count().min()).iloc[0] > 100:
                 title_aug = title + '<br>Slice: ' + slice
                 if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
-                    fig, imp_in = _marginal_cts(model, column, features_dict, samp_df.loc[i], target, num_grp,
+                    fig, imp_in = tfu._marginal_cts(model, column, features_dict, samp_df.loc[i], target, num_grp,
                                                     num_sample, title_aug,
                                                     sub_titles, cols)
                 else:
-                    fig, imp_in = _marginal_cat(model, column, features_dict, samp_df.loc[i], target, num_grp,
+                    fig, imp_in = tfu._marginal_cat(model, column, features_dict, samp_df.loc[i], target, num_grp,
                                                     num_sample, title_aug,
                                                     sub_titles, cols)
-                importance[target + '_' + slice] = imp_in
+                targ_imp[slice] = imp_in
+                
                 if in_browser:
                     fig.show()
                 if plot_dir is not None:
@@ -740,10 +744,18 @@ def marginal(model: tf.keras.Model, features_target: dict, features_dict: dict, 
                     fig.write_image(fname)
             else:
                 print('No marginal graph for {0} and slice {1}'.format(target, slice))
-    
-    imp_df = pd.DataFrame(importance, index=['importance']).transpose()
-    imp_df = imp_df.sort_values('importance', ascending=False)
-    return imp_df
+        importance[target] = targ_imp
+    flist = list(importance.keys())
+    slist = importance[flist[0]].keys()
+    out_df = pd.DataFrame()
+    for f in flist:
+        col = []
+        for s in slist:
+            col += [importance[f][s]]
+        out_df[f] = col
+    out_df.index = slist
+    return out_df.transpose()
+    return importance
 
 
 def dq_get_bias(qry: str):
