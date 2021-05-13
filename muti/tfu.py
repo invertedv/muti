@@ -717,11 +717,11 @@ def marginal(model: tf.keras.Model, features_target: dict, features_dict: dict, 
             if (samp_df.loc[i].groupby('grp').count().min()).iloc[0] > 100:
                 title_aug = title + '<br>Slice: ' + slice
                 if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
-                    fig, imp_in = tfu._marginal_cts(model, column, features_dict, samp_df.loc[i], target, num_grp,
+                    fig, imp_in = _marginal_cts(model, column, features_dict, samp_df.loc[i], target, num_grp,
                                                     num_sample, title_aug,
                                                     sub_titles, cols)
                 else:
-                    fig, imp_in = tfu._marginal_cat(model, column, features_dict, samp_df.loc[i], target, num_grp,
+                    fig, imp_in = _marginal_cat(model, column, features_dict, samp_df.loc[i], target, num_grp,
                                                     num_sample, title_aug,
                                                     sub_titles, cols)
                 targ_imp[slice] = imp_in
