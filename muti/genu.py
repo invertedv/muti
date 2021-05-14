@@ -461,9 +461,9 @@ def feature_fit_plot(feature: str, feature_type: str, y_name: str, yh_name: str,
     """
     if feature_type == 'cts' or feature_type == 'spl':
         us = np.arange(num_quantiles + 1) / num_quantiles
-        quantiles = sample_df[feature].quantile(us).unique()
-        quantiles[0] -= 1.0
         decimals = 5
+        quantiles = np.unique(np.round(sample_df[feature].quantile(us), decimals))
+        quantiles[0] -= 1.0
         while np.unique(np.round(quantiles, decimals)).shape[0] == quantiles.shape[0]:
             decimals -= 1
             if decimals < 0:

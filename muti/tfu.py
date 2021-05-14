@@ -694,56 +694,55 @@ def marginal(model: tf.keras.Model, features_target: dict, features_dict: dict, 
         for slice in slices.keys():
             i = slices[slice]
             samp_df = sample_df.loc[i].copy()
-            quantiles = samp_df.loc[i][model_col].quantile(target_qs)
+            quantiles = samp_df.loc[i][model_col].quantile(target_qs).unique()
             quantiles.iloc[0] -= 1.0
             num_grp = quantiles.shape[0] - 1
             if quantiles.nunique() != 7:
                 print('No marginal graph for {0} and slice {1}'.format(target, slice))
-                break
-            
-            # graph titles. The title of the RHS graph depends on the feature type -- so it's assigned later
-            sub_titles = []
-            for j in range(num_grp):
-                sub_title = 'Model Output in {0} to {1}'.format(round(quantiles.iloc[j], 2),
-                                                                round(quantiles.iloc[j + 1], 2))
-                sub_title += '<br>'
-                sub_title += 'Quantile {0} to {1}'.format(target_qs[j], target_qs[j + 1])
-                sub_titles += [sub_title]
-            sub_titles += ['Place Holder']
-            # now we have the six MOG groups that we will base the graphs on
-            samp_df['grp'] = pd.cut(samp_df[model_col], quantiles, labels=['grp' + str(j) for j in range(num_grp)],
-                                    right=True)
-            
-            if (samp_df.loc[i].groupby('grp').count().min()).iloc[0] > 100:
-                title_aug = title + '<br>Slice: ' + slice
-                if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
-                    fig, imp_in = _marginal_cts(model, column, features_dict, samp_df.loc[i], target, num_grp,
-                                                    num_sample, title_aug,
-                                                    sub_titles, cols)
-                else:
-                    fig, imp_in = _marginal_cat(model, column, features_dict, samp_df.loc[i], target, num_grp,
-                                                    num_sample, title_aug,
-                                                    sub_titles, cols)
-                targ_imp[slice] = imp_in
-                
-                if in_browser:
-                    fig.show()
-                if plot_dir is not None:
-                    if plot_dir[-1] != '/':
-                        plot_dir += '/'
-                    pdir = plot_dir + slice + '/'
-                    os.makedirs(pdir + 'html/', exist_ok=True)
-                    os.makedirs(pdir + 'png/', exist_ok=True)
-                    
-                    fname = pdir + 'html/Marginal_' + target + '.html'
-                    fig.write_html(fname)
-                    
-                    # needed for png to look decent
-                    fig.update_layout(width=1800, height=1150)
-                    fname = pdir + 'png/Marginal_' + target + '.png'
-                    fig.write_image(fname)
             else:
-                print('No marginal graph for {0} and slice {1}'.format(target, slice))
+                # graph titles. The title of the RHS graph depends on the feature type -- so it's assigned later
+                sub_titles = []
+                for j in range(num_grp):
+                    sub_title = 'Model Output in {0} to {1}'.format(round(quantiles.iloc[j], 2),
+                                                                    round(quantiles.iloc[j + 1], 2))
+                    sub_title += '<br>'
+                    sub_title += 'Quantile {0} to {1}'.format(target_qs[j], target_qs[j + 1])
+                    sub_titles += [sub_title]
+                sub_titles += ['Place Holder']
+                # now we have the six MOG groups that we will base the graphs on
+                samp_df['grp'] = pd.cut(samp_df[model_col], quantiles, labels=['grp' + str(j) for j in range(num_grp)],
+                                        right=True)
+                
+                if (samp_df.loc[i].groupby('grp').count().min()).iloc[0] > 100:
+                    title_aug = title + '<br>Slice: ' + slice
+                    if features_dict[target][0] == 'cts' or features_dict[target][0] == 'spl':
+                        fig, imp_in = _marginal_cts(model, column, features_dict, samp_df.loc[i], target, num_grp,
+                                                        num_sample, title_aug,
+                                                        sub_titles, cols)
+                    else:
+                        fig, imp_in = _marginal_cat(model, column, features_dict, samp_df.loc[i], target, num_grp,
+                                                        num_sample, title_aug,
+                                                        sub_titles, cols)
+                    targ_imp[slice] = imp_in
+                    
+                    if in_browser:
+                        fig.show()
+                    if plot_dir is not None:
+                        if plot_dir[-1] != '/':
+                            plot_dir += '/'
+                        pdir = plot_dir + slice + '/'
+                        os.makedirs(pdir + 'html/', exist_ok=True)
+                        os.makedirs(pdir + 'png/', exist_ok=True)
+                        
+                        fname = pdir + 'html/Marginal_' + target + '.html'
+                        fig.write_html(fname)
+                        
+                        # needed for png to look decent
+                        fig.update_layout(width=1800, height=1150)
+                        fname = pdir + 'png/Marginal_' + target + '.png'
+                        fig.write_image(fname)
+                else:
+                    print('No marginal graph for {0} and slice {1}'.format(target, slice))
         importance[target] = targ_imp
     flist = list(importance.keys())
     slist = importance[flist[0]].keys()
@@ -819,18 +818,6 @@ def model_fit(mb_query: str, features_dict: dict, target_var: str, model_struct_
     import tensorflow as tf
     from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
     import tensorflow.keras.backend as be
-#    import os
-    
-    # tf settings
-#    os.environ['data_format'] = 'NCHW'
-#    os.environ['KMP_AFFINITY'] = 'granularity=fine,compact,1,0'
-#    os.environ['KMP_BLOCKTIME'] = '1'
-#    os.environ['OMP_NUM_THREADS'] = '4'
-#    os.environ['KMP_SETTINGS'] = 'TRUE'
-    
-#    tf.config.threading.set_inter_op_parallelism_threads(4)
-#    tf.config.threading.set_intra_op_parallelism_threads(2)
-#    os.environ['TF_XLA_FLAGS'] = '--tf_xla_enable_xla_devices'
     
     # model
     if model_in != '':
