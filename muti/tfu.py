@@ -697,14 +697,14 @@ def marginal(model: tf.keras.Model, features_target: dict, features_dict: dict, 
             quantiles = samp_df.loc[i][model_col].quantile(target_qs).unique()
             quantiles[0] -= 1.0
             num_grp = quantiles.shape[0] - 1
-            if num_grp != 7:
+            if num_grp != 6:
                 print('No marginal graph for {0} and slice {1}'.format(target, slice))
             else:
                 # graph titles. The title of the RHS graph depends on the feature type -- so it's assigned later
                 sub_titles = []
                 for j in range(num_grp):
-                    sub_title = 'Model Output in {0} to {1}'.format(round(quantiles.iloc[j], 2),
-                                                                    round(quantiles.iloc[j + 1], 2))
+                    sub_title = 'Model Output in {0} to {1}'.format(round(quantiles[j], 2),
+                                                                    round(quantiles[j + 1], 2))
                     sub_title += '<br>'
                     sub_title += 'Quantile {0} to {1}'.format(target_qs[j], target_qs[j + 1])
                     sub_titles += [sub_title]
