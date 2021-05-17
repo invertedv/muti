@@ -210,7 +210,7 @@ def ks_calculate(score_variable: pd.Series, binary_variable: pd.Series, plot=Fal
     ks = round(float(100.0 * max(abs(uu1 - uu0))), 1)
     
     if plot:
-        pio.renderers.default = 'browser'
+#        pio.renderers.default = 'browser'
         fig = [go.Scatter(x=score0, y=u0, line=dict(color='black'))]
         fig += [go.Scatter(x=score1, y=u1, line=dict(color='black'))]
         
