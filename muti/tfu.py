@@ -57,7 +57,7 @@ def get_pred(yh, column=None, wts=None):
     return np.sum(yh[:, column], axis=1)
 
 
-def model_predictions(df: pd.DataFrame, specs: list, in_place = True):
+def model_predictions(df: pd.DataFrame, specs: list, in_place = True, log_odds=False):
     """
     find the predicted values for a keras model
     
@@ -69,12 +69,18 @@ def model_predictions(df: pd.DataFrame, specs: list, in_place = True):
            [2] - target of model
            [3] - column(s)
            [4] - output name
-   
+    :param log_odds: if true, take log-odds of result
     :return:
     """
     modl = tf.keras.models.load_model(specs[0])
     ds = get_tf_dataset(specs[1], specs[2], df, 1000, 1)
     yh = get_pred(modl.predict(ds), specs[3])
+    if log_odds:
+        i = yh > 0.99999
+        yh[i] = .99999
+        i = yh < 0.00001
+        yh[i] = 0.00001
+        yh = np.log(yh / (1.0 - yh))
     if in_place:
         df[specs[4]] = yh
         return
