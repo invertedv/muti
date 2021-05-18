@@ -100,8 +100,6 @@ def plot_history(history: dict, groups=['loss'], metric='loss', first_epoch=0, t
     :param in_browser: if True display in browser
     :return:
     """
-    pio.renderers.default = 'browser'
-    os.makedirs(plot_dir, exist_ok=True)
     fig = []
     for g in groups:
         x = np.arange(first_epoch, len(history[g]) - first_epoch)
@@ -114,8 +112,10 @@ def plot_history(history: dict, groups=['loss'], metric='loss', first_epoch=0, t
                        yaxis=dict(title=metric))
     figx = go.Figure(fig, layout=layout)
     if in_browser:
+        pio.renderers.default = 'browser'
         figx.show()
     if plot_dir is not None:
+        os.makedirs(plot_dir, exist_ok=True)
         plot_file = plot_dir + metric + '.png'
         figx.write_image(plot_file)
 
