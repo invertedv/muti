@@ -559,3 +559,38 @@ def fit_by_feature(features: dict, targets: dict, sample_df: pd.DataFrame, plot_
                     ks_calculate(sample_df.loc[i][yh_name], sample_df.loc[i][y_name], plot=True, title=et,
                                  plot_dir=pdir, out_file='KS', in_browser=in_browser)
 
+
+def curves(df: pd.DataFrame, model, actual, xvar, title='', plot_dir='', out_file='', in_browser=False):
+    """
+    Groups the data and plots the mean model/actual by this.
+    
+    :param df: Contains data to plot
+    :param model: column in df with model output
+    :param actual: column in df with actual value
+    :param xvar: column in df to group by
+    :param title: title of plot
+    :param plot_dir: directory to place the plot
+    :param out_file: file name (root) for plot
+    :param in_browser: =True means plot into the browser
+    :return:
+    """
+
+    mod = df.groupby(xvar)[[model, actual]].mean().reset_index()
+    figx = [go.Scatter(x=mod[xvar], y=mod[model], mode='lines', line=dict(color='black'), name='model')]
+    figx += [go.Scatter(x=mod[xvar], y=mod[actual], mode='lines', line=dict(color='red'), name='actual')]
+    if title == '':
+        title = 'Curves'
+    lay = go.Layout(title=title,
+                    xaxis=dict(title=xvar),
+                    yaxis=dict(title=model + '/' + actual))
+    fig = go.Figure(figx, layout=lay)
+    if in_browser:
+        pio.renderers.default = 'browser'
+        fig.show()
+    if plot_dir != '':
+        os.makedirs(plot_dir + 'png/', exist_ok=True)
+        os.makedirs(plot_dir + 'html/', exist_ok=True)
+        if out_file == '':
+            out_file = model + '_curve'
+        fig.write_image(plot_dir + 'png/' + out_file + '.png')
+        fig.write_html(plot_dir + 'html/' + out_file + '.html')
