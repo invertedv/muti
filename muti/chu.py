@@ -5,7 +5,7 @@ Utilities that help with clickhouse
 import clickhouse_driver
 
 
-def make_connection():
+def make_connection(threads=4):
     """
       Connects to the local clickhouse server
       Returns the client
@@ -21,6 +21,7 @@ def make_connection():
     # give queries more room to execute
     client.execute("SET max_memory_usage = 40000000000;")
     client.execute("SET max_bytes_before_external_group_by=20000000000;")
+    client.execute("SET max_threads=" + str(threads))
     return client
 
 
