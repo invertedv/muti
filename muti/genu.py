@@ -553,6 +553,7 @@ def fit_by_feature(features: dict, targets: dict, sample_df: pd.DataFrame, plot_
     plot_min, plot_max = sample_df[yh_name].quantile([.001, .999])
     
     slices['Overall'] = np.full(sample_df.shape[0], True)
+    done_ks = False
     for feature in features.keys():
         for slice in slices.keys():
             i = slices[slice]
@@ -572,7 +573,8 @@ def fit_by_feature(features: dict, targets: dict, sample_df: pd.DataFrame, plot_
                 
                 fname = pdir + 'html/ModelFit_' + feature + '.html'
                 figx1.write_html(fname)
-                if plot_ks:
+                if plot_ks and not done_ks:
+                    done_ks = True
                     ks_calculate(sample_df.loc[i][yh_name], sample_df.loc[i][y_name], plot=True, title=et,
                                       plot_dir=pdir, out_file='KS', in_browser=in_browser)
 
