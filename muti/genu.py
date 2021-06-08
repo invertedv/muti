@@ -550,13 +550,13 @@ def fit_by_feature(features: dict, targets: dict, sample_df: pd.DataFrame, plot_
     pio.renderers.default = 'browser'
     y_name = targets['target']
     yh_name = targets['model_output']
-    plot_min, plot_max = sample_df[yh_name].quantile([.001, .999])
     
     slices['Overall'] = np.full(sample_df.shape[0], True)
     for feature in features.keys():
         done_ks = False
         for slice in slices.keys():
             i = slices[slice]
+            plot_min, plot_max = sample_df.loc[i][yh_name].quantile([.001, .999])
             et = 'Slice: ' + slice
             figx1 = feature_fit_plot(feature, features[feature][0], y_name, yh_name, sample_df.loc[i],
                                      num_quantiles, coverage, boot_samples, norm_ci, et, rng=[plot_min, plot_max])
