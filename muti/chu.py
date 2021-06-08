@@ -19,7 +19,7 @@ def make_connection():
     # client = Client(host='localhost', settings={'use_numpy': True})
 
     # give queries more room to execute
-    client.execute("SET max_memory_usage = 45000000000;")
+    client.execute("SET max_memory_usage = 40000000000;")
     client.execute("SET max_bytes_before_external_group_by=20000000000;")
     return client
 

@@ -444,7 +444,8 @@ def boot_mean(y_in: pd.Series, num_samples=100, coverage=0.95, norm_ci=False):
 
 
 def feature_fit_plot(feature: str, feature_type: str, y_name: str, yh_name: str, sample_df: pd.DataFrame,
-                     num_quantiles: int, coverage: float, boot_samples=0, norm_ci=True, extra_title=None):
+                     num_quantiles: int, coverage: float, boot_samples=0, norm_ci=True, extra_title=None,
+                     rng=[]):
     """
     Generates a single feature_fit plot
     :param feature: name of column of sample_df to work on
@@ -487,8 +488,12 @@ def feature_fit_plot(feature: str, feature_type: str, y_name: str, yh_name: str,
             ci = boot_mean(sample_df.loc[i][y_name], boot_samples, coverage=coverage, norm_ci=norm_ci)
             x = [co.loc[indx][yh_name], co.loc[indx][yh_name]]
             fig1 += [go.Scatter(x=x, y=ci, mode='lines', line=dict(color='black'), name='')]
-    minv = min([co[y_name].min(), co[yh_name].min()])
-    maxv = max([co[y_name].max(), co[yh_name].max()])
+    if rng == []:
+        minv = min([co[y_name].min(), co[yh_name].min()])
+        maxv = max([co[y_name].max(), co[yh_name].max()])
+    else:
+        minv = rng[0]
+        maxv = rng[1]
     fig1 += [go.Scatter(x=[minv, maxv], y=[minv, maxv], mode='lines', line=dict(color='red'), name='')]
     title = 'Model vs Actual Grouped by ' + feature
     if extra_title is not None:
@@ -504,6 +509,18 @@ def feature_fit_plot(feature: str, feature_type: str, y_name: str, yh_name: str,
     xlab = 'CI at {0:.0f}% coverage'.format(100 * coverage)
     figx1.add_annotation(text=xlab, font=dict(size=10), x=0.5, xanchor='center', xref='paper', y=0,
                          yanchor='top', yref='paper', yshift=-50, showarrow=False)
+    
+    rangexy = maxv - minv
+    act_mean, model_mean = sample_df[[y_name, yh_name]].mean()
+    mad = np.mean(np.abs(co[y_name] - co[yh_name]))
+    disp = co[yh_name].std()
+    annot = 'actual mean: {0:.4f}<br>model mean{1:.4f}<br>MAD: {2:.4f}<br>s(decile): {3:.4f}'.format(act_mean,
+                                                                                                     model_mean, mad,
+                                                                                                     disp)
+    figx1.add_annotation(x=minv + 0.6 * rangexy, y=minv + 0.2 * rangexy,
+                         text=annot,
+                         showarrow=False)
+    
     return figx1
 
 
@@ -533,6 +550,7 @@ def fit_by_feature(features: dict, targets: dict, sample_df: pd.DataFrame, plot_
     pio.renderers.default = 'browser'
     y_name = targets['target']
     yh_name = targets['model_output']
+    plot_min, plot_max = sample_df[yh_name].quantile([.001, .999])
     
     slices['Overall'] = np.full(sample_df.shape[0], True)
     for feature in features.keys():
@@ -540,10 +558,9 @@ def fit_by_feature(features: dict, targets: dict, sample_df: pd.DataFrame, plot_
             i = slices[slice]
             et = 'Slice: ' + slice
             figx1 = feature_fit_plot(feature, features[feature][0], y_name, yh_name, sample_df.loc[i],
-                                     num_quantiles, coverage, boot_samples, norm_ci, et)
+                                     num_quantiles, coverage, boot_samples, norm_ci, et, rng=[plot_min, plot_max])
             if in_browser:
                 figx1.show()
-            pdir = None
             if plot_dir is not None:
                 if plot_dir[-1] != '/':
                     plot_dir += '/'
@@ -557,7 +574,7 @@ def fit_by_feature(features: dict, targets: dict, sample_df: pd.DataFrame, plot_
                 figx1.write_html(fname)
                 if plot_ks:
                     ks_calculate(sample_df.loc[i][yh_name], sample_df.loc[i][y_name], plot=True, title=et,
-                                 plot_dir=pdir, out_file='KS', in_browser=in_browser)
+                                      plot_dir=pdir, out_file='KS', in_browser=in_browser)
 
 
 def curves(df: pd.DataFrame, model, actual, xvar, title='', plot_dir='', out_file='', in_browser=False):
