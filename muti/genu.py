@@ -514,7 +514,7 @@ def feature_fit_plot(feature: str, feature_type: str, y_name: str, yh_name: str,
     act_mean, model_mean = sample_df[[y_name, yh_name]].mean()
     mad = np.mean(np.abs(co[y_name] - co[yh_name]))
     disp = co[yh_name].std()
-    annot = 'actual mean: {0:.4f}<br>model mean{1:.4f}<br>MAD: {2:.4f}<br>s(decile): {3:.4f}'.format(act_mean,
+    annot = 'actual mean: {0:.4f}<br>model mean: {1:.4f}<br>MAD: {2:.4f}<br>s(decile): {3:.4f}'.format(act_mean,
                                                                                                      model_mean, mad,
                                                                                                      disp)
     figx1.add_annotation(x=minv + 0.6 * rangexy, y=minv + 0.2 * rangexy,
@@ -556,7 +556,7 @@ def fit_by_feature(features: dict, targets: dict, sample_df: pd.DataFrame, plot_
         done_ks = False
         for slice in slices.keys():
             i = slices[slice]
-            plot_min, plot_max = sample_df.loc[i][yh_name].quantile([.001, .999])
+            plot_min, plot_max = sample_df.loc[i][yh_name].quantile([.05, .95])
             et = 'Slice: ' + slice
             figx1 = feature_fit_plot(feature, features[feature][0], y_name, yh_name, sample_df.loc[i],
                                      num_quantiles, coverage, boot_samples, norm_ci, et, rng=[plot_min, plot_max])
