@@ -5,7 +5,7 @@ Utilities that help with clickhouse
 import clickhouse_driver
 
 
-def make_connection(threads=4):
+def make_connection(threads=0):
     """
       Connects to the local clickhouse server
       Returns the client

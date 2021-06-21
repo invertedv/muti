@@ -956,10 +956,20 @@ def model_fitter(q: multiprocessing.Queue, mb_query: str, features_dict: dict, t
     q.put(h.history)
     save_file = model_save_dir + 'model' + str(iter) + '.h5'
     mod.save(save_file, overwrite=True, save_format='h5')
+    # check if this is a classifier
     model_output = mod.predict(valid_ds)
-    valid_df['model'] = get_pred(model_output, model_columns)
-    valid_df['actual'] = valid_df[target_var].isin(target_values).astype(int)
-    title = 'Validation KS<br>After {0} epochs'.format((iter + 1) * epochs)
-    genu.ks_calculate(valid_df['model'], valid_df['actual'], in_browser=True, plot=True, title=title)
-    title = 'Validation Decile Plot<br>After {0} epochs'.format((iter + 1) * epochs)
-    genu.decile_plot(valid_df['model'], valid_df['actual'], title=title, in_browser=True)
+    if target_values is not None:
+        valid_df['model'] = get_pred(model_output, model_columns)
+        valid_df['actual'] = valid_df[target_var].isin(target_values).astype(int)
+        title = 'Validation KS<br>After {0} epochs'.format((iter + 1) * epochs)
+        genu.ks_calculate(valid_df['model'], valid_df['actual'], in_browser=True, plot=True, title=title)
+        title = 'Validation Decile Plot<br>After {0} epochs'.format((iter + 1) * epochs)
+        genu.decile_plot(valid_df['model'], valid_df['actual'], title=title, in_browser=True)
+    else:
+        valid_df['model'] = model_output
+        title = 'Validation Decile Plot<br>After {0} epochs'.format((iter + 1) * epochs)
+        pmin, pmax = valid_df['model'].quantile([.01, .99])
+        genu.decile_plot(valid_df['model'], valid_df[target_var], title=title, in_browser=True,
+                         plot_maximum=pmax,plot_minimum=pmin)
+        print(valid_df[['model', target_var]].corr())
+        print(valid_df['model'].describe())

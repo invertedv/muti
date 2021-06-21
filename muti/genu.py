@@ -556,7 +556,7 @@ def fit_by_feature(features: dict, targets: dict, sample_df: pd.DataFrame, plot_
         done_ks = False
         for slice in slices.keys():
             i = slices[slice]
-            plot_min, plot_max = sample_df.loc[i][yh_name].quantile([.05, .95])
+            plot_min, plot_max = sample_df.loc[i][yh_name].quantile([.01, .99])
             et = 'Slice: ' + slice
             figx1 = feature_fit_plot(feature, features[feature][0], y_name, yh_name, sample_df.loc[i],
                                      num_quantiles, coverage, boot_samples, norm_ci, et, rng=[plot_min, plot_max])
