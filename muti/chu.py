@@ -26,7 +26,7 @@ def make_connection(threads=0):
 
 
 def run_query(query_or_file: str, client: clickhouse_driver.Client, is_file=False,
-              return_df=False, replace_source=None, replace_dest=None):
+              return_df=False, replace_source=None, replace_dest=None, query_id=''):
     """
 
     Run a clickhouse query.
@@ -56,10 +56,11 @@ def run_query(query_or_file: str, client: clickhouse_driver.Client, is_file=Fals
             query = query.replace(src, replace_dest[j])
     elif replace_source is not None:
         query = query.replace(replace_source, replace_dest)
+
     if return_df:
         df = client.query_dataframe(query)
         return df
-    client.execute(query)
+    client.execute(query, query_id=query_id)
 
 
 def import_flat_file(table_name: str, file_name: str, delim="|", format="CSV", options=""):
