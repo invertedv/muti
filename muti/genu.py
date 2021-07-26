@@ -368,8 +368,10 @@ def make_dir_tree(base_path: str, dirs: list, rename_to=None):
     :return: <none>
     """
     
-    def check_path(path, new_name):
+    def check_path(path: str, new_name: str):
         if os.path.isdir(path):
+            if rename_to.lower() == 'keep':
+                return
             if rename_to is not None:
                 if os.path.isdir(new_name):
                     raise IsADirectoryError(new_name + ' already exists')
@@ -380,9 +382,11 @@ def make_dir_tree(base_path: str, dirs: list, rename_to=None):
     if base_path[-1] != '/':
         base_path += '/'
     check_path(base_path, rename_to)
-    os.makedirs(base_path)
+    if not os.path.isdir(base_path):
+        os.makedirs(base_path)
     for p in dirs:
-        os.makedirs(base_path + p)
+        if not os.path.isdir(base_path + p):
+            os.makedirs(base_path + p)
 
 
 def importance_ranking_print(imp_dict: dict, keys: list):
