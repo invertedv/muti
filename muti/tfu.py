@@ -971,5 +971,3 @@ def model_fitter(q: multiprocessing.Queue, mb_query: str, features_dict: dict, t
         pmin, pmax = valid_df['model'].quantile([.01, .99])
         genu.decile_plot(valid_df['model'], valid_df[target_var], title=title, in_browser=True,
                          plot_maximum=pmax,plot_minimum=pmin)
-        print(valid_df[['model', target_var]].corr())
-        print(valid_df['model'].describe())
