@@ -370,9 +370,9 @@ def make_dir_tree(base_path: str, dirs: list, rename_to=None):
     
     def check_path(path: str, new_name: str):
         if os.path.isdir(path):
-            if rename_to.lower() == 'keep':
+            if new_name.lower() == 'keep':
                 return
-            if rename_to is not None:
+            if new_name != '':
                 if os.path.isdir(new_name):
                     raise IsADirectoryError(new_name + ' already exists')
                 os.system('mv ' + path + ' ' + new_name)
@@ -381,6 +381,8 @@ def make_dir_tree(base_path: str, dirs: list, rename_to=None):
     
     if base_path[-1] != '/':
         base_path += '/'
+    if rename_to is None:
+        rename_to = ''
     check_path(base_path, rename_to)
     if not os.path.isdir(base_path):
         os.makedirs(base_path)
