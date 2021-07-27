@@ -427,12 +427,14 @@ def boot_mean(y_in: pd.Series, num_samples=100, coverage=0.95, norm_ci=False):
     :rtype list
     """
     
-    if y_in.shape[0] == 0:
+    if y_in.shape[0] == 0 or y_in.nunique() == 1:
         return [0.0, 0.0]
     alpha2 = (1.0 - coverage) / 2.0
     if norm_ci:
         phat = y_in.mean()
         if y_in.nunique() > 2:
+            std = math.sqrt(y_in.std() / float(y_in.shape[0]))
+        elif y_in.max() != 1.0 and y_in.min() != 0.0:
             std = math.sqrt(y_in.std() / float(y_in.shape[0]))
         else:
             std = math.sqrt(phat * (1.0 - phat) / float(y_in.shape[0]))
