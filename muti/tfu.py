@@ -389,21 +389,34 @@ def _marginal_cts(model: tf.keras.Model, column, features_dict: dict, sample_df:
     
     # now sample the DataFrame
     samps = sample_df.groupby('grp').sample(num_sample, replace=True)
-    samps['samp_num'] = np.arange(samps.shape[0])
+    samp_num = pd.Series(np.arange(samps.shape[0]))
+    samps.index = samp_num
+    samp_num.name = 'samp_num'
+    samps = pd.concat([samps, samp_num], axis=1)
+#    samps['samp_num'] = np.arange(samps.shape[0])
     # drop the target column -- we're going to replace it with our grid of values
     samps.pop(target)
     # join in our grid
     score_df = pd.merge(samps, to_join[target], on='grp')
     nobs = score_df.shape[0]
-    score_df['target'] = np.full(nobs, 0.0)  # noop value
+    targetx = pd.Series(np.full(nobs, 0.0))
+    targetx.name = 'target'
+    score_df = pd.concat([score_df, targetx], axis=1)
+#    score_df['target'] = np.full(nobs, 0.0)  # noop value
     score_ds = get_tf_dataset(features_dict, 'target', score_df, nobs, 1)
     
     # get model output
-    score_df['yh'] = get_pred(model.predict(score_ds), column)
+    yh = pd.Series(get_pred(model.predict(score_ds), column))
+    yh.name = 'yh'
+    score_df = pd.concat([score_df, yh], axis=1)
+#    score_df['yh'] = get_pred(model.predict(score_ds), column)
     
     # need to convert our feature values to string so rounding doesn't make graph look stupid
     xplot_name = target + '_str'
-    score_df[xplot_name] = np.round(score_df[target], 2).astype(str)
+    xpn = np.round(score_df[target], 2).astype(str)
+    xpn.name = xplot_name
+    score_df = pd.concat([score_df, xpn], axis=1)
+#    score_df[xplot_name] = np.round(score_df[target], 2).astype(str)
     
     # add the boxplots. I don't see a way to do grouped boxplots in a single pass in a subplot.
     for j in range(num_grp):
@@ -530,20 +543,33 @@ def _marginal_cat(model: tf.keras.Model, column, features_dict: dict, sample_df:
     
     # get sample
     samps = sample_df.groupby('grp').sample(num_sample, replace=True)
-    samps['samp_num'] = np.arange(samps.shape[0])
+    samp_num = pd.Series(np.arange(samps.shape[0]))
+    samps.index = samp_num
+    samp_num.name = 'samp_num'
+    samps = pd.concat([samps, samp_num], axis=1)
+#    samps['samp_num'] = np.arange(samps.shape[0])
     # drop target -- we're going to replace these
     samps.pop(target)
     # join to sample
     score_df = pd.merge(samps, to_join[target], on='grp')
     nobs = score_df.shape[0]
-    score_df['target'] = np.full(nobs, 0.0)  # noop value
+    tt = pd.Series(np.full(nobs, 0.0))
+    tt.name = 'target'
+    score_df = pd.concat([score_df, tt], axis=1)
+#    score_df['target'] = np.full(nobs, 0.0)  # noop value
     score_ds = get_tf_dataset(features_dict, 'target', score_df, nobs, 1)
     
     # get model output
-    score_df['yh'] = get_pred(model.predict(score_ds), column)
+    yh = pd.Series(get_pred(model.predict(score_ds), column))
+    yh.name = 'yh'
+    score_df = pd.concat([score_df, yh], axis=1)
+#    score_df['yh'] = get_pred(model.predict(score_ds), column)
     
     xplot_name = target + '_str'
-    score_df[xplot_name] = score_df[target].astype(str)
+    xpn = score_df[target].astype(str)
+    xpn.name = xplot_name
+    score_df = pd.concat([score_df, xpn], axis=1)
+#    score_df[xplot_name] = score_df[target].astype(str)
     for j in range(num_grp):
         i = score_df['grp'] == 'grp' + str(j)
         fig.add_trace(go.Box(x=score_df.loc[i][xplot_name], y=score_df.loc[i]['yh'], marker=dict(color=cols[j])),
