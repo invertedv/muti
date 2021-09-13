@@ -58,7 +58,7 @@ def run_query(query_or_file: str, client: clickhouse_driver.Client, is_file=Fals
         query = query.replace(replace_source, replace_dest)
 
     if return_df:
-        df = client.query_dataframe(query)
+        df = client.query_dataframe(query, query_id=query_id)
         return df
     client.execute(query, query_id=query_id)
 
