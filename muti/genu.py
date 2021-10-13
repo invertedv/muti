@@ -51,7 +51,7 @@ def get_unique_levels(feature: str, client: clickhouse_driver.Client, table: str
     return u, most_freq_level
 
 
-def get_closest(ul: list, field: str, target: str, db: str, table: str,
+def get_closest(ul: list, field: str, target: str, table: str,
                 client: clickhouse_driver.Client, print_details=True):
     """
     This function is designed to select the out-of-list default value for an embedding. It selects this value
@@ -60,7 +60,6 @@ def get_closest(ul: list, field: str, target: str, db: str, table: str,
     :param ul: in-list values
     :param field: name of field we're working on
     :param target: target field used for assessing 'close'
-    :param db: database to use
     :param table: table to use
     :param client: clickhouse client
     :param print_details: if True, prints info about the outcome
@@ -102,7 +101,7 @@ def get_closest(ul: list, field: str, target: str, db: str, table: str,
     
     df = chu.run_query(qry, client, return_df=True,
                        replace_source=['TTTT', 'XXXX', 'YYYY', 'ZZZZ'],
-                       replace_dest=[repl, field, target, db + '.' + table])
+                       replace_dest=[repl, field, target, table])
     if print_details:
         print('Out-of-list element selection for field {0} using target {1}'.format(field, target))
         print(df)
