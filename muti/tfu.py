@@ -76,14 +76,11 @@ def model_predictions(df: pd.DataFrame, specs: list, in_place = True, log_odds=F
     ds = get_tf_dataset(specs[1], specs[2], df, 1000, 1)
     yh = get_pred(modl.predict(ds), specs[3])
     if log_odds:
-        try:
-            yh = np.log(yh / (1.0 - yh))
-        except ValueError:
-            i = yh == 1.0
-            yh[i] = .999999
-            i = yh == 0.0
-            yh[i] = 0.000001
-            yh = np.log(yh / (1.0 - yh))
+        i = yh == 1.0
+        yh[i] = .999999
+        i = yh == 0.0
+        yh[i] = 0.000001
+        yh = np.log(yh / (1.0 - yh))
     if in_place:
         df[specs[4]] = yh
         return

@@ -28,20 +28,19 @@ def r_square(yh, y):
     return float(r2)
 
 
-def get_unique_levels(feature: str, client: clickhouse_driver.Client, db: str, table: str, cnt_min=None):
+def get_unique_levels(feature: str, client: clickhouse_driver.Client, table: str, cnt_min=None):
     """
     Retrieves the unique levels of the column 'feature' in the table 'table' of database db.
     At most 1000 are returned.
 
     :param feature: column name in db.table to get unique levels
     :param client: clickhouse client connector
-    :param db: database name
-    :param table: table name
+    :param table: table name (with db)
     :param cnt_min: minimum count for a level to be returned
     :return: list of unique levels and the most frequent level
     :rtype list, <value>
     """
-    qry = 'SELECT ' + feature + ' AS grp, count(*) AS nl FROM ' + db + '.' + table + ' GROUP BY grp'
+    qry = 'SELECT {0} AS grp, count(*) as nl FROM {1} GROUP BY grp'.format(feature, table)
     if cnt_min is not None:
         qry += ' HAVING nl > ' + str(cnt_min)
     qry += ' ORDER BY nl DESC LIMIT 1000'
