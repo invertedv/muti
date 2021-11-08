@@ -215,8 +215,8 @@ def build_model_cols(feature_dict: dict, out_vocab_dir=None, print_details=True)
     return tf_cols_cts, inputs_cts, tf_cols_cat, inputs_cat
 
 
-def get_tf_dataset(feature_dict: dict, target: str, df: pd.DataFrame, batch_size: int, repeats=0,
-                   buffer_size=0):
+def get_tf_dataset(feature_dict: dict, target: str, df: pd.DataFrame, batch_size: int, repeats=0):
+
     """
     build a tf dataset from a pandas DataFrame
     
@@ -227,8 +227,6 @@ def get_tf_dataset(feature_dict: dict, target: str, df: pd.DataFrame, batch_size
     :param repeats: how many repeats of the dataset (None = infinite)
     :return: tf dataset
     """
-    if buffer_size == 0:
-        buffer_size = df.shape[0]
     buffer_size = df.shape[0]
     tf_ds = tf.data.Dataset.from_tensor_slices((dict(df[feature_dict.keys()]), df[target]))
 #    tf_ds = tf_ds.batch(batch_size, drop_remainder=True, deterministic=False, num_parallel_calls=tf.data.AUTOTUNE).repeat().prefetch(buffer_size)
@@ -890,7 +888,7 @@ def model_fit(mb_query: str, features_dict: dict, target_var: str, model_struct_
     print('modeling data set size: {0}'.format(model_df.shape[0]))
     print('validation data set size: {0}'.format(valid_df.shape[0]))
     steps_per_epoch = int(model_df.shape[0] / batch_size)
-    model_ds = get_tf_dataset(features_dict, target_var, model_df, batch_size, buffer_size=1000000)
+    model_ds = get_tf_dataset(features_dict, target_var, model_df, batch_size)
     valid_ds = get_tf_dataset(features_dict, target_var, valid_df, batch_size, repeats=1)
     print('starting fit')
     h = mod.fit(model_ds, epochs=epochs, steps_per_epoch=steps_per_epoch, verbose=verbose,
@@ -979,7 +977,7 @@ def model_fitter_multi(q: multiprocessing.Queue, mb_query: str, features_dict: d
     print('modeling data set size: {0}'.format(model_df.shape[0]))
     print('validation data set size: {0}'.format(valid_df.shape[0]))
     steps_per_epoch = int(model_df.shape[0] / batch_size)
-    model_ds = get_tf_dataset(features_dict, target_var, model_df, batch_size) #, buffer_size=1000000)
+    model_ds = get_tf_dataset(features_dict, target_var, model_df, batch_size)
     valid_ds = get_tf_dataset(features_dict, target_var, valid_df, batch_size, repeats=1)
     print('starting fit')
     h = mod.fit(model_ds, epochs=epochs, steps_per_epoch=steps_per_epoch, verbose=verbose,
@@ -1066,7 +1064,7 @@ def model_fitter(mb_query: str, features_dict: dict, target_var: str, get_model_
     f.write('modeling data set size: {0}\n'.format(model_df.shape[0]))
     f.write('validation data set size: {0}\n'.format(valid_df.shape[0]))
     steps_per_epoch = int(model_df.shape[0] / batch_size)
-    model_ds = get_tf_dataset(features_dict, target_var, model_df, batch_size, buffer_size=1000000)
+    model_ds = get_tf_dataset(features_dict, target_var, model_df, batch_size)
     valid_ds = get_tf_dataset(features_dict, target_var, valid_df, batch_size, repeats=1)
     f.write('starting fit\n')
     h = mod.fit(model_ds, epochs=epochs, steps_per_epoch=steps_per_epoch, verbose=verbose,
