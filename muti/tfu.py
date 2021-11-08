@@ -2,6 +2,7 @@
 Utilities that help with the building of tensorflow keras models
 
 """
+import io
 
 from muti import chu, genu
 import tensorflow as tf
@@ -226,13 +227,17 @@ def get_tf_dataset(feature_dict: dict, target: str, df: pd.DataFrame, batch_size
     :param repeats: how many repeats of the dataset (None = infinite)
     :return: tf dataset
     """
+    if buffer_size == 0:
+        buffer_size = df.shape[0]
+    buffer_size = df.shape[0]
     tf_ds = tf.data.Dataset.from_tensor_slices((dict(df[feature_dict.keys()]), df[target]))
+#    tf_ds = tf_ds.batch(batch_size, drop_remainder=True, deterministic=False, num_parallel_calls=tf.data.AUTOTUNE).repeat().prefetch(buffer_size)
     if repeats == 0:
-        if buffer_size == 0:
-            buffer_size = df.shape[0]
-        tf_ds = tf_ds.shuffle(buffer_size).batch(batch_size).repeat()
+        tf_ds = tf_ds.batch(batch_size, drop_remainder=True, deterministic=False, num_parallel_calls=tf.data.AUTOTUNE)
+        tf_ds = tf_ds.prefetch(buffer_size=buffer_size)
+        tf_ds = tf_ds.cache()
     else:
-        tf_ds = tf_ds.batch(batch_size).repeat(repeats)
+        tf_ds = tf_ds.batch(batch_size, deterministic=False, num_parallel_calls=tf.data.AUTOTUNE).repeat(repeats).prefetch(buffer_size)
     return tf_ds
 
 
@@ -912,7 +917,7 @@ def model_fit_call(args):
     return model_fit(*args)
 
 
-def model_fitter(q: multiprocessing.Queue, mb_query: str, features_dict: dict, target_var: str, get_model_sample_fn,
+def model_fitter_multi(q: multiprocessing.Queue, mb_query: str, features_dict: dict, target_var: str, get_model_sample_fn,
               existing_models: dict, batch_size: int, epochs: int, patience: int, verbose: int,
               model_out: str, out_tensorboard: str, lr: float, iter: int,
               model_save_dir: str, model_columns: list, target_values: list):
@@ -969,11 +974,12 @@ def model_fitter(q: multiprocessing.Queue, mb_query: str, features_dict: dict, t
     data_df = get_model_sample_fn(mb_query, existing_models)
     model_df = data_df.loc[data_df['holdout'] == 0].copy()
     valid_df = data_df.loc[data_df['holdout'] == 1].copy()
-    
+    tf.config.experimental.enable_tensor_float_32_execution(False)
+
     print('modeling data set size: {0}'.format(model_df.shape[0]))
     print('validation data set size: {0}'.format(valid_df.shape[0]))
     steps_per_epoch = int(model_df.shape[0] / batch_size)
-    model_ds = get_tf_dataset(features_dict, target_var, model_df, batch_size, buffer_size=1000000)
+    model_ds = get_tf_dataset(features_dict, target_var, model_df, batch_size) #, buffer_size=1000000)
     valid_ds = get_tf_dataset(features_dict, target_var, valid_df, batch_size, repeats=1)
     print('starting fit')
     h = mod.fit(model_ds, epochs=epochs, steps_per_epoch=steps_per_epoch, verbose=verbose,
@@ -997,3 +1003,90 @@ def model_fitter(q: multiprocessing.Queue, mb_query: str, features_dict: dict, t
         pmin, pmax = valid_df['model'].quantile([.01, .99])
         genu.decile_plot(valid_df['model'], valid_df[target_var], title=title, in_browser=True,
                          plot_maximum=pmax,plot_minimum=pmin)
+
+
+def model_fitter(mb_query: str, features_dict: dict, target_var: str, get_model_sample_fn,
+                 existing_models: dict, batch_size: int, epochs: int, patience: int, verbose: int,
+                 model_out: str, out_tensorboard: str, lr: float,
+                 model_save_dir: str, model_columns: list, target_values: list, f: io.TextIOWrapper):
+    """
+    Function to fit a tf keras model. Designed to be called by multiprocessing.Process
+
+    :param mb_query: query to get model-build data
+    :param features_dict: features in the model
+    :param target_var: target variable of the model
+    :param get_model_sample_fn: function to get the model-build data, takes mb_query, existing_models as args
+    :param existing_models: dict of models to run over the data and add to the model-build DataFrame
+    :param batch_size: batch size for tf
+    :param epochs: # of epochs of the data to run
+    :param patience: patience -- # of epochs of non-improving val_loss before quitting
+    :param verbose: print level for tf
+    :param model_out: output directory for full model
+    :param out_tensorboard: output directory for tb
+    :param lr: learning rate. if = 0 then not applied
+    :param model_save_dir: directory to save 'h5' format of model
+    :param model_columns: columns of model output to used for KS, decile plots
+    :param target_values: values of target_var that correspond to model_columns
+    :param f: file to write notifications to
+    :return:
+    """
+    from muti import genu
+    import tensorflow as tf
+    import tensorflow.keras.backend as be
+    from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
+    
+    # model
+    mod = tf.keras.models.load_model(model_out)
+    if lr > 0.0:
+        be.set_value(mod.optimizer.lr, lr)
+    
+    # callbacks
+    model_ckpt = ModelCheckpoint(model_out, monitor='val_loss', save_best_only=True)
+    
+    tensorboard = TensorBoard(
+        log_dir=out_tensorboard,
+        histogram_freq=1,
+        write_images=True,
+        embeddings_freq=100)
+#        profile_batch=(1,10))
+    
+    early_stopping = tf.keras.callbacks.EarlyStopping(
+        monitor='val_loss',
+        verbose=1,
+        patience=patience,
+        mode='auto',
+        restore_best_weights=True)
+    
+    f.write('getting data\n')
+    data_df = get_model_sample_fn(mb_query, existing_models)
+    model_df = data_df.loc[data_df['holdout'] == 0].copy()
+    valid_df = data_df.loc[data_df['holdout'] == 1].copy()
+    #tf.config.experimental.enable_tensor_float_32_execution(False)
+    
+    f.write('modeling data set size: {0}\n'.format(model_df.shape[0]))
+    f.write('validation data set size: {0}\n'.format(valid_df.shape[0]))
+    steps_per_epoch = int(model_df.shape[0] / batch_size)
+    model_ds = get_tf_dataset(features_dict, target_var, model_df, batch_size, buffer_size=1000000)
+    valid_ds = get_tf_dataset(features_dict, target_var, valid_df, batch_size, repeats=1)
+    f.write('starting fit\n')
+    h = mod.fit(model_ds, epochs=epochs, steps_per_epoch=steps_per_epoch, verbose=verbose,
+                callbacks=[tensorboard, model_ckpt, early_stopping], validation_data=valid_ds)
+    f.write('done with fit\n')
+    # might be fewer than epochs if we stopped early
+    act_epochs = len(h.history['loss'])
+    # check if this is a classifier
+    model_output = mod.predict(valid_ds)
+    if target_values is not None:
+        valid_df['model'] = get_pred(model_output, model_columns)
+        valid_df['actual'] = valid_df[target_var].isin(target_values).astype(int)
+        title = 'Validation KS<br>After {0} epochs'.format(act_epochs)
+        genu.ks_calculate(valid_df['model'], valid_df['actual'], in_browser=True, plot=True, title=title)
+        title = 'Validation Decile Plot<br>After {0} epochs'.format(act_epochs)
+        genu.decile_plot(valid_df['model'], valid_df['actual'], title=title, in_browser=True)
+    else:
+        valid_df['model'] = model_output
+        title = 'Validation Decile Plot<br>After {0} epochs'.format(act_epochs)
+        pmin, pmax = valid_df['model'].quantile([.01, .99])
+        genu.decile_plot(valid_df['model'], valid_df[target_var], title=title, in_browser=True,
+                         plot_maximum=pmax, plot_minimum=pmin)
+    return h.history

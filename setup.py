@@ -8,7 +8,7 @@ setup(
     license='MIT',
     author='William Alexander',
     author_email='will@invertedv.com',
-    install_requires=['numpy', 'pandas', 'tensorflow', 'plotly', 'scipy', 'kaleido',
+    install_requires=['numpy', 'pandas', 'tensorflow-gpu', 'plotly', 'scipy', 'kaleido',
                       'modeling'],
 description='Tools for regression modeling'
 )
