@@ -231,6 +231,7 @@ def get_tf_dataset(feature_dict: dict, target: str, df: pd.DataFrame, batch_size
     tf_ds = tf.data.Dataset.from_tensor_slices((dict(df[feature_dict.keys()]), df[target]))
 #    tf_ds = tf_ds.batch(batch_size, drop_remainder=True, deterministic=False, num_parallel_calls=tf.data.AUTOTUNE).repeat().prefetch(buffer_size)
     if repeats == 0:
+        tf_ds = tf_ds.shuffle(reshuffle_each_iteration=True, buffer_size=buffer_size)
         tf_ds = tf_ds.batch(batch_size, drop_remainder=True, deterministic=False, num_parallel_calls=tf.data.AUTOTUNE)
         tf_ds = tf_ds.prefetch(buffer_size=buffer_size)
         tf_ds = tf_ds.cache()
