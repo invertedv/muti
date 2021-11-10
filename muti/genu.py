@@ -582,7 +582,7 @@ def fit_by_feature(features: dict, targets: dict, sample_df: pd.DataFrame, plot_
                 if plot_ks and not done_ks:
                     ks_calculate(sample_df.loc[i][yh_name], sample_df.loc[i][y_name], plot=True, title=et,
                                       plot_dir=pdir, out_file='KS', in_browser=in_browser)
-            done_ks = True
+                    done_ks = True
 
 def curves(df: pd.DataFrame, model, actual, xvar, title='', plot_dir='', out_file='', in_browser=False):
     """

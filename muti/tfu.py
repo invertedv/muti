@@ -1007,7 +1007,7 @@ def model_fitter_multi(q: multiprocessing.Queue, mb_query: str, features_dict: d
 def model_fitter(mb_query: str, features_dict: dict, target_var: str, get_model_sample_fn,
                  existing_models: dict, batch_size: int, epochs: int, patience: int, verbose: int,
                  model_out: str, out_tensorboard: str,
-                 model_save_dir: str, model_columns: list, target_values: list, f: io.TextIOWrapper):
+                 model_columns: list, target_values: list, f: io.TextIOWrapper):
     """
     Function to fit a tf keras model. Designed to be called by multiprocessing.Process
 
@@ -1022,7 +1022,6 @@ def model_fitter(mb_query: str, features_dict: dict, target_var: str, get_model_
     :param verbose: print level for tf
     :param model_out: output directory for full model
     :param out_tensorboard: output directory for tb
-    :param model_save_dir: directory to save 'h5' format of model
     :param model_columns: columns of model output to used for KS, decile plots
     :param target_values: values of target_var that correspond to model_columns
     :param f: file to write notifications to
