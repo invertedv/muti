@@ -3,6 +3,7 @@ Utilities that help with clickhouse
 
 """
 import clickhouse_driver
+from os import system
 
 
 def make_connection(threads=0):
@@ -75,10 +76,26 @@ def import_flat_file(table_name: str, file_name: str, delim="|", format="CSV", o
     :return:
     """
     
-    import os
     cmd = "clickhouse-client " + options + " "
     if delim != "":
         cmd += '--format_csv_delimiter="' + delim + '" '
     cmd += ' --query "INSERT INTO ' + table_name + ' FORMAT ' + format + '"  < '
     cmd += file_name
-    os.system(cmd)
+    system(cmd)
+
+
+def export_flat_file(qry: str, file_name: str, format="CSVWithNames"):
+    """
+    Import a flat file into ClickHouse
+
+    :param qry: query to extract data
+    :param file_name: file to read from
+    :param delim: delimiter in the file
+    :param format: file format
+    :param options: other clickhouse options
+    :return:
+    """
+    # clickhouse-client --query "select field, field_type, field_values from mr.fields where required='Y' and source='collateral' order by sort_order" --format CSVWithNames > tmp.csv
+
+    cmd = 'clickhouse-client --query "{0}" --format {1} > {2}'.format(qry, format, file_name)
+    system(cmd)
