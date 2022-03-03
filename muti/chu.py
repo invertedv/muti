@@ -6,7 +6,7 @@ import clickhouse_driver
 from os import system
 
 
-def make_connection(threads=0):
+def make_connection(threads=0, host='127.0.0.1', user='default', password=''):
     """
       Connects to the local clickhouse server
       Returns the client
@@ -14,15 +14,16 @@ def make_connection(threads=0):
     from clickhouse_driver import Client
     
     # establish connect, in this case to local server
-    client = Client(host='localhost')
+    client = Client(host=host, user=user, password=password)
     
-    # Consider using:
-    # client = Client(host='localhost', settings={'use_numpy': True})
-
-    # give queries more room to execute
-    client.execute("SET max_memory_usage = 40000000000;")
-    client.execute("SET max_bytes_before_external_group_by=20000000000;")
-    client.execute("SET max_threads=" + str(threads))
+    # execute these, but the user may not have this level of permissions
+    try:
+        # give queries more room to execute
+        client.execute("SET max_memory_usage = 40000000000;")
+        client.execute("SET max_bytes_before_external_group_by=20000000000;")
+        client.execute("SET max_threads=" + str(threads))
+    except:
+        pass
     return client
 
 
