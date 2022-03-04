@@ -65,7 +65,8 @@ def run_query(query_or_file: str, client: clickhouse_driver.Client, is_file=Fals
     client.execute(query, query_id=query_id)
 
 
-def import_flat_file(table_name: str, file_name: str, delim="|", format="CSV", options=""):
+def import_flat_file(table_name: str, file_name: str, delim="|", format="CSV", options="",
+                     host='127.0.0.1', user='default', pw=''):
     """
     Import a flat file into ClickHouse
     
@@ -74,10 +75,16 @@ def import_flat_file(table_name: str, file_name: str, delim="|", format="CSV", o
     :param delim: delimiter in the file
     :param format: file format
     :param options: other clickhouse options
+    :param host: CH IP address
+    :param user: user name
+    :param pw: uwer password
     :return:
     """
     
-    cmd = "clickhouse-client " + options + " "
+    cmd = "clickhouse-client --host={0} --user={1} ".format(host, user)
+    if pw != '':
+      cmd = "clickhouse-client password={2} ".format(pw)
+    cmd += options + " "
     if delim != "":
         cmd += '--format_csv_delimiter="' + delim + '" '
     cmd += ' --query "INSERT INTO ' + table_name + ' FORMAT ' + format + '"  < '
