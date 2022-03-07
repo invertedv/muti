@@ -83,7 +83,7 @@ def import_flat_file(table_name: str, file_name: str, delim="|", format="CSV", o
     
     cmd = "clickhouse-client --host={0} --user={1} ".format(host, user)
     if pw != '':
-      cmd = "clickhouse-client password={2} ".format(pw)
+      cmd = "clickhouse-client --host={0} --user={1} --password={2} ".format(host, user, pw)
     cmd += options + " "
     if delim != "":
         cmd += '--format_csv_delimiter="' + delim + '" '
