@@ -192,25 +192,15 @@ def ks_calculate(score_variable: pd.Series, binary_variable: pd.Series, plot=Fal
     score1.index = np.arange(0, score1.shape[0])
     u1 = (np.arange(0, score1.shape[0]) + 1 - 0.5) / score1.shape[0]
     
-    # interpolate these at common values
-    delta = (score_variable.max() - score_variable.min()) / 100
-    sc = np.arange(score_variable.min(), score_variable.max(), delta)
-    
-    ind0 = score0.searchsorted(sc)
-    # it's possible that ind0 may have a value = score0.shape[0] (e.g. sc bigger than biggest score0)
-    ind0[ind0 >= score0.shape[0]] = score0.shape[0] - 1
-    uu0 = u0[ind0]
-    
-    ind1 = score1.searchsorted(sc)
-    ind1[ind1 >= score1.shape[0]] = score1.shape[0] - 1
-    uu1 = u1[ind1]
-    
-    ks = round(float(100.0 * max(abs(uu1 - uu0))), 1)
+    u = np.linspace(0.0, 1.0, 100)
+    s0 = np.interp(u, u0, score0)
+    s1 = np.interp(u, u1, score1)
+    ks = round(100.0 * np.abs(s0 - s1).max(), 1)
     
     if plot:
-#        pio.renderers.default = 'browser'
-        fig = [go.Scatter(x=score0, y=u0, line=dict(color='black'))]
-        fig += [go.Scatter(x=score1, y=u1, line=dict(color='black'))]
+        #        pio.renderers.default = 'browser'
+        fig = [go.Scatter(x=s0, y=u, line=dict(color='black'))]
+        fig += [go.Scatter(x=s1, y=u, line=dict(color='black'))]
         
         maxx = score_variable.max()
         if subtitle is None:

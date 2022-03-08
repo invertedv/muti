@@ -11,6 +11,8 @@ import pandas as pd
 import plotly.graph_objs as go
 import plotly.io as pio
 from plotly.subplots import make_subplots
+import statsmodels.api as sm
+
 import warnings
 import os
 import math
@@ -350,7 +352,7 @@ def _marginal_cts(model: tf.keras.Model, column, features_dict: dict, sample_df:
                   sub_titles: str, cols: list):
     """
     Build a Marginal Effects plot for a continuous feature
-    
+
     :param model: model
     :param column: column(s) of model output, either an int or list of ints
     :param features_dict: features in the model
@@ -363,17 +365,20 @@ def _marginal_cts(model: tf.keras.Model, column, features_dict: dict, sample_df:
     :param cols: colors to use: list of str
     :return: plotly_fig and importance metric
     """
-    
     sub_titles[6] = 'Box Plots'
+    sub_titles += ['Density']
+    sub_titles += ['CDF']
+    
     # 't' is top spacing, 'b' is bottom, 'None' means there is no graph in that cell. We make
     # 2 x 7 -- eliminating the (2,7) graph and putting the RHS graph in the (1,7) position
+    # there are two graphs on the second row that take up 2 columns
     fig = make_subplots(rows=2, cols=num_grp + 1, subplot_titles=sub_titles,
                         row_heights=[1, .5],
                         specs=[[{'t': 0.07, 'b': -.1}, {'t': 0.07, 'b': -.10}, {'t': 0.07, 'b': -.10},
                                 {'t': 0.07, 'b': -.10}, {'t': 0.07, 'b': -.10}, {'t': 0.07, 'b': -.10},
                                 {'t': 0.35, 'b': -0.35}],
-                               [{'t': -0.07}, {'t': -.07}, {'t': -.07}, {'t': -0.07}, {'t': -.07},
-                                {'t': -.07}, None]])
+                               [{'t': -0.07, 'colspan': 2}, None, None, {'t': -.07, 'colspan': 2}, None,
+                                None, None]])
     
     # start with top row graphs
     # find ranges by MOG and merge
@@ -397,7 +402,7 @@ def _marginal_cts(model: tf.keras.Model, column, features_dict: dict, sample_df:
     samps.index = samp_num
     samp_num.name = 'samp_num'
     samps = pd.concat([samps, samp_num], axis=1)
-#    samps['samp_num'] = np.arange(samps.shape[0])
+    #    samps['samp_num'] = np.arange(samps.shape[0])
     # drop the target column -- we're going to replace it with our grid of values
     samps.pop(target)
     # join in our grid
@@ -406,53 +411,54 @@ def _marginal_cts(model: tf.keras.Model, column, features_dict: dict, sample_df:
     targetx = pd.Series(np.full(nobs, 0.0))
     targetx.name = 'target'
     score_df = pd.concat([score_df, targetx], axis=1)
-#    score_df['target'] = np.full(nobs, 0.0)  # noop value
+    #    score_df['target'] = np.full(nobs, 0.0)  # noop value
     score_ds = get_tf_dataset(features_dict, 'target', score_df, nobs, 1)
     
     # get model output
     yh = pd.Series(get_pred(model.predict(score_ds), column))
     yh.name = 'yh'
     score_df = pd.concat([score_df, yh], axis=1)
-#    score_df['yh'] = get_pred(model.predict(score_ds), column)
+    #    score_df['yh'] = get_pred(model.predict(score_ds), column)
     
     # need to convert our feature values to string so rounding doesn't make graph look stupid
     xplot_name = target + '_str'
     xpn = np.round(score_df[target], 2).astype(str)
     xpn.name = xplot_name
     score_df = pd.concat([score_df, xpn], axis=1)
-#    score_df[xplot_name] = np.round(score_df[target], 2).astype(str)
+    #    score_df[xplot_name] = np.round(score_df[target], 2).astype(str)
     
     # add the boxplots. I don't see a way to do grouped boxplots in a single pass in a subplot.
     for j in range(num_grp):
         i = score_df['grp'] == 'grp' + str(j)
-        fig.add_trace(go.Box(x=score_df.loc[i][xplot_name], y=score_df.loc[i]['yh'], marker=dict(color=cols[j])),
-                      row=1, col=j + 1)
+        fig.add_trace(go.Box(x=score_df.loc[i][xplot_name], y=score_df.loc[i]['yh'], marker=dict(color=cols[j]),
+                             showlegend=False), row=1, col=j + 1)
     
     # now let's do bottom row
-    maxyr2 = 0.0
+    # there are two graphs: the density and cdf of the feature distribution within each model group
     for j in range(num_grp):
         i = sample_df['grp'] == 'grp' + str(j)
-        fig.add_trace(go.Histogram(x=sample_df.loc[i][target], marker=dict(color=cols[j]),
-                                   histnorm='probability density'),
-                      row=2, col=j + 1)
-        # this appears to be the only way to get the bin heights of the histogram -- the histogrm is built
-        # by javascript. All that's stored in the
-        ym = fig.full_figure_for_development(warn=False)['layout']['yaxis' + str(num_grp + 2 + j)]['range'][1]
-        if ym > maxyr2:
-            maxyr2 = ym
+        # find the cdf at 100 points
+        x = sample_df.loc[i][target].sort_values()
+        y = np.linspace(0.0, 1.0, num=x.shape[0])
+        yp = np.linspace(0.0, 1.0, 100)
+        xp = np.interp(yp, y, x)
+        # kernel density estimate
+        kde = sm.nonparametric.KDEUnivariate(x)
+        bw = sm.nonparametric.bandwidths.bw_scott(x, 'epa')
+        if j == 0:
+            nm = 'Lowest'
+        elif j == num_grp - 1:
+            nm = 'Highest'
+        else:
+            nm = 'G' + str(j)
+        kde.fit(gridsize=100, kernel='epa', bw=bw * 4, fft=False)
+        # density
+        fig.add_trace(go.Scatter(x=kde.support, y=kde.density, name=nm, line=dict(color=cols[j])), row=2, col=1)
+        # cdf
+        fig.add_trace(go.Scatter(x=xp, y=yp, showlegend=False, line=dict(color=cols[j])), row=2, col=4)
     xlab = '(Top row values span 1%ile-99%ile within each model output group)'
     
-    # set a common x range for the bottom row
-    xrng = sample_df[target].quantile([0.01, 0.99])
-    xmin2 = float(xrng.iloc[0])
-    xmax2 = float(xrng.iloc[1])
-    xmin2 -= 0.01 * (xmax2 - xmin2)
-    xmax2 += 0.01 * (xmax2 - xmin2)
-    for j in range(num_grp):
-        fig['layout']['yaxis' + str(num_grp + 2 + j)]['range'] = [0, maxyr2]
-        fig['layout']['xaxis' + str(num_grp + 2 + j)]['range'] = [xmin2, xmax2]
-    
-    # Now do RHS graph
+    # Now do the RHS graph
     for j, g in enumerate(['grp' + str(j) for j in range(num_grp)]):
         i = sample_df['grp'] == g
         if j == 0:
@@ -461,7 +467,11 @@ def _marginal_cts(model: tf.keras.Model, column, features_dict: dict, sample_df:
             nm = 'Highest'
         else:
             nm = 'G' + str(j)
-        fig.add_trace(go.Box(y=sample_df.loc[i][target], name=nm, marker=dict(color=cols[j]), ),
+        y = sample_df.loc[i][target]
+        if y.shape[0] > 5000:
+            ix = np.random.uniform(0.0, 1.0, y.shape[0]) < 5000.0 / y.shape[0]
+            y = y.loc[ix]
+        fig.add_trace(go.Box(y=y, name=nm, marker=dict(color=cols[j]), showlegend=False),
                       row=1, col=num_grp + 1)
     mm = sample_df[target].quantile([0.01, 0.99])
     minys = float(mm.iloc[0])
@@ -481,15 +491,20 @@ def _marginal_cts(model: tf.keras.Model, column, features_dict: dict, sample_df:
                        yanchor='top', yref='paper', yshift=-40, showarrow=False)
     fig.add_annotation(text=xlab, font=dict(size=10), x=0.5, xanchor='center', xref='paper', y=0,
                        yanchor='top', yref='paper', yshift=-60, showarrow=False)
-    fig.add_annotation(text='Within Group Distribution', font=dict(size=20), x=0.45, xanchor='center', xref='paper',
+    fig.add_annotation(text='Within Group Distribution of Feature', font=dict(size=20), x=0.45, xanchor='center',
+                       xref='paper',
                        y=.4, yanchor='top', yref='paper', yshift=-40, showarrow=False)
+    # fig.layout.grid.figure.
+    fig['layout']['showlegend'] = True
+    # put the legend between the two graphs on the second row
+    fig['layout']['legend'] = dict(x=0.325, y=0.1)
+    #    fig['layout']['legend']['side'] =
     maxy = score_df['yh'].quantile(.99)
     miny = score_df['yh'].quantile(.01)
     for jj in range(num_grp):
         fig['layout']['yaxis' + str(jj + 1)]['range'] = [miny, maxy]
     for jj in range(1, num_grp):
         fig['layout']['yaxis' + str(jj + 1)]['showticklabels'] = False
-        fig['layout']['yaxis' + str(num_grp + 2 + jj)]['showticklabels'] = False
     
     meds = score_df.groupby(['grp', xplot_name], observed=True)['yh'].median()
     medr = meds.groupby('grp').max() - meds.groupby('grp').min()
@@ -793,7 +808,7 @@ def marginal(model: tf.keras.Model, features_target: dict, features_dict: dict, 
     return importance
 
 
-def dq_get_bias(qry: str):
+def dq_get_bias(qry: str, user: str, pw: str):
     """
     This function is used to obtain values to adjust the initial bias of the output layer of a DNN model whose
     output is a softmax or sigmoid layer
@@ -810,7 +825,7 @@ def dq_get_bias(qry: str):
     :param qry: query that returns target classes and counts
     :return: log odds values by levels of the model target variable
     """
-    client = chu.make_connection()
+    client = chu.make_connection(user=user, password=pw)
     dist_df = chu.run_query(qry, client, return_df=True )
     dist_df['p'] = dist_df['n'] / dist_df['n'].sum()
     avalue = np.zeros(dist_df.shape[0])
@@ -882,7 +897,7 @@ def model_fit(mb_query: str, features_dict: dict, target_var: str, model_struct_
         restore_best_weights=True)
     
     print('getting data')
-    data_df = get_model_sample_fn(mb_query, existing_models)
+    data_df = get_model_sample_fn(mb_query, existing_models, user, pw)
     model_df = data_df.loc[data_df['holdout'] == 0].copy()
     valid_df = data_df.loc[data_df['holdout'] == 1].copy()
     
@@ -1007,7 +1022,8 @@ def model_fitter_multi(q: multiprocessing.Queue, mb_query: str, features_dict: d
 def model_fitter(mb_query: str, features_dict: dict, target_var: str, get_model_sample_fn,
                  existing_models: dict, batch_size: int, epochs: int, patience: int, verbose: int,
                  model_out: str, out_tensorboard: str,
-                 model_columns: list, target_values: list, f: io.TextIOWrapper):
+                 model_columns: list, target_values: list, f: io.TextIOWrapper,
+                 user: str, pw: str):
     """
     Function to fit a tf keras model. Designed to be called by multiprocessing.Process
 
@@ -1053,7 +1069,7 @@ def model_fitter(mb_query: str, features_dict: dict, target_var: str, get_model_
         restore_best_weights=True)
     
     f.write('getting data\n')
-    data_df = get_model_sample_fn(mb_query, existing_models)
+    data_df = get_model_sample_fn(mb_query, existing_models, user, pw)
     model_df = data_df.loc[data_df['holdout'] == 0].copy()
     valid_df = data_df.loc[data_df['holdout'] == 1].copy()
     #tf.config.experimental.enable_tensor_float_32_execution(False)
