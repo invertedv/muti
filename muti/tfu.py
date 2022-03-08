@@ -121,7 +121,7 @@ def plot_history(history: dict, groups=['loss'], metric='loss', first_epoch=0, t
         figx.write_image(plot_file)
 
         plot_file = plot_dir + metric + '.html'
-        figx.write_html(plot_file)
+        figx.write_html(plot_file, include_plotlyjs='cdn')
 
 
 def build_column(feature_name: str, feature_params: list, out_path=None, print_details=True):
@@ -771,7 +771,7 @@ def marginal(model: tf.keras.Model, features_target: dict, features_dict: dict, 
                         os.makedirs(pdir + 'png/', exist_ok=True)
                         
                         fname = pdir + 'html/Marginal_' + target + '.html'
-                        fig.write_html(fname)
+                        fig.write_html(fname, include_plotlyjs='cdn')
                         
                         # needed for png to look decent
                         fig.update_layout(width=1800, height=1150)

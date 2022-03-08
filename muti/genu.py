@@ -143,7 +143,7 @@ def cont_hist(yh, y, title='2D Contour Histogram', xlab='Model Output', ylab='Y'
         figx.show()
     if plot_dir is not None:
         figx.write_image(plot_dir + 'png/model_fit.png')
-        figx.write_html(plot_dir + 'html/model_fit.html')
+        figx.write_html(plot_dir + 'html/model_fit.html', include_plotlyjs='cdn')
 
 
 def ks_calculate(score_variable: pd.Series, binary_variable: pd.Series, plot=False, xlab='Score', ylab='CDF',
@@ -227,7 +227,7 @@ def ks_calculate(score_variable: pd.Series, binary_variable: pd.Series, plot=Fal
             figx.show()
         if out_file is not None:
             figx.write_image(plot_dir + 'png/' + out_file + '.png')
-            figx.write_html(plot_dir + 'html/' + out_file + '.html')
+            figx.write_html(plot_dir + 'html/' + out_file + '.html', include_plotlyjs='cdn')
     return ks
 
 
@@ -347,7 +347,7 @@ def decile_plot(score_variable: pd.Series, binary_variable: pd.Series, xlab='Sco
         figx.show()
     if out_file is not None:
         figx.write_image(plot_dir + 'png/' + out_file + '.png')
-        figx.write_html(plot_dir + 'html/' + out_file + '.html')
+        figx.write_html(plot_dir + 'html/' + out_file + '.html', include_plotlyjs='cdn')
     return
 
 
@@ -578,7 +578,7 @@ def fit_by_feature(features: dict, targets: dict, sample_df: pd.DataFrame, plot_
                 figx1.write_image(fname)
                 
                 fname = pdir + 'html/ModelFit_' + feature + '.html'
-                figx1.write_html(fname)
+                figx1.write_html(fname, include_plotlyjs='cdn')
                 if plot_ks and not done_ks:
                     ks_calculate(sample_df.loc[i][yh_name], sample_df.loc[i][y_name], plot=True, title=et,
                                       plot_dir=pdir, out_file='KS', in_browser=in_browser)
@@ -617,4 +617,4 @@ def curves(df: pd.DataFrame, model, actual, xvar, title='', plot_dir='', out_fil
         if out_file == '':
             out_file = model + '_curve'
         fig.write_image(plot_dir + 'png/' + out_file + '.png')
-        fig.write_html(plot_dir + 'html/' + out_file + '.html')
+        fig.write_html(plot_dir + 'html/' + out_file + '.html', include_plotlyjs='cdn')
