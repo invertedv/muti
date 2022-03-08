@@ -455,7 +455,7 @@ def _marginal_cts(model: tf.keras.Model, column, features_dict: dict, sample_df:
         # density
         fig.add_trace(go.Scatter(x=kde.support, y=kde.density, name=nm, line=dict(color=cols[j])), row=2, col=1)
         # cdf
-        fig.add_trace(go.Scatter(x=xp, y=yp, showlegend=False, line=dict(color=cols[j])), row=2, col=4)
+        fig.add_trace(go.Scatter(x=xp, y=yp, showlegend=False, name=nm, line=dict(color=cols[j])), row=2, col=4)
     xlab = '(Top row values span 1%ile-99%ile within each model output group)'
     
     # Now do the RHS graph
