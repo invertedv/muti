@@ -9,6 +9,6 @@ setup(
     author='William Alexander',
     author_email='will@invertedv.com',
     install_requires=['numpy', 'pandas', 'tensorflow-gpu', 'plotly', 'scipy', 'kaleido', 'statsmodels',
-                      'modeling'],
+                      'modeling', 'clickhouse-driver'],
 description='Tools for regression modeling'
 )

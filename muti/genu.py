@@ -191,17 +191,17 @@ def ks_calculate(score_variable: pd.Series, binary_variable: pd.Series, plot=Fal
     score1 = score1.sort_values()
     score1.index = np.arange(0, score1.shape[0])
     u1 = (np.arange(0, score1.shape[0]) + 1 - 0.5) / score1.shape[0]
-    
-    u = np.linspace(0.0, 1.0, 100)
-    s0 = np.interp(u, u0, score0)
-    s1 = np.interp(u, u1, score1)
-    ks = round(100.0 * np.abs(s0 - s1).max(), 1)
-    
+
+    s = np.linspace(0.0, 1.0, 100)
+    u0 = np.interp(s, score0, u0)
+    u1 = np.interp(s, score1, u1)
+    ks = round(100.0 * np.abs(u0 - u1).max(), 1)
+
     if plot:
         #        pio.renderers.default = 'browser'
-        fig = [go.Scatter(x=s0, y=u, line=dict(color='black'))]
-        fig += [go.Scatter(x=s1, y=u, line=dict(color='black'))]
-        
+        fig = [go.Scatter(x=s, y=u0, line=dict(color='black'))]
+        fig += [go.Scatter(x=s, y=u1, line=dict(color='black'))]
+    
         maxx = score_variable.max()
         if subtitle is None:
             sub_title = "KS: " + str(ks)
