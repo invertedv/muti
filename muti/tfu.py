@@ -443,17 +443,24 @@ def _marginal_cts(model: tf.keras.Model, column, features_dict: dict, sample_df:
         yp = np.linspace(0.0, 1.0, 100)
         xp = np.interp(yp, y, x)
         # kernel density estimate
-        kde = sm.nonparametric.KDEUnivariate(x)
-        bw = sm.nonparametric.bandwidths.bw_scott(x, 'epa')
+        xu = x.unique()
+        if xu.shape[0] > 1:
+            kde = sm.nonparametric.KDEUnivariate(x)
+            bw = sm.nonparametric.bandwidths.bw_scott(x, 'epa')
+            kde.fit(gridsize=100, kernel='epa', bw=bw * 4, fft=False)
+            x = kde.support
+            density = kde.density
+        else:
+            x = xu
+            density = [0.0]
         if j == 0:
             nm = 'Lowest'
         elif j == num_grp - 1:
             nm = 'Highest'
         else:
             nm = 'G' + str(j)
-        kde.fit(gridsize=100, kernel='epa', bw=bw * 4, fft=False)
         # density
-        fig.add_trace(go.Scatter(x=kde.support, y=kde.density, name=nm, line=dict(color=cols[j])), row=2, col=1)
+        fig.add_trace(go.Scatter(x=x, y=density, name=nm, line=dict(color=cols[j])), row=2, col=1)
         # cdf
         fig.add_trace(go.Scatter(x=xp, y=yp, showlegend=False, name=nm, line=dict(color=cols[j])), row=2, col=4)
     xlab = '(Top row values span 1%ile-99%ile within each model output group)'
